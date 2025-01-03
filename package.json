@@ -1,0 +1,12 @@
+{
+  "name": "u-mint",
+  "version": "1.0.0",
+  "description": "**u-mint** is an innovative platform for creating, buying, and selling unique NFTs. Our mission is to empower creators, collectors, and enthusiasts to easily mint and trade NFTs in a seamless and intuitive way.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
