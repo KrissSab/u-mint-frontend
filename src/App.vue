@@ -1,10 +1,3 @@
-<script setup lang="ts">
-import { RouterView } from "vue-router";
-import TheHeader from "./components/layout/TheHeader.vue";
-import TheFooter from "./components/layout/TheFooter.vue";
-import TheAdvert from "./components/layout/TheAdvert.vue";
-</script>
-
 <template>
   <div class="app-wrapper">
     <TheAdvert />
@@ -15,6 +8,13 @@ import TheAdvert from "./components/layout/TheAdvert.vue";
     <TheFooter />
   </div>
 </template>
+
+<script setup lang="ts">
+import { RouterView } from "vue-router";
+import TheHeader from "./components/layout/TheHeader.vue";
+import TheFooter from "./components/layout/TheFooter.vue";
+import TheAdvert from "./components/layout/TheAdvert.vue";
+</script>
 
 <style scoped>
 .app-wrapper {

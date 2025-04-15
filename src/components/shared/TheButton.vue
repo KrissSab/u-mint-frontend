@@ -4,18 +4,19 @@
   </button>
 </template>
 
-<script>
+<script lang="ts">
 export default {
   props: {
     type: {
       type: String,
       default: "button",
-      validator: (value) => ["button", "submit", "reset"].includes(value),
+      validator: (value: string) =>
+        ["button", "submit", "reset"].includes(value),
     },
     variant: {
       type: String,
       default: "primary",
-      validator: (value) =>
+      validator: (value: string) =>
         [
           "primary",
           "secondary",
@@ -29,7 +30,7 @@ export default {
     size: {
       type: String,
       default: "md",
-      validator: (value) => ["sm", "md", "lg"].includes(value),
+      validator: (value: string) => ["sm", "md", "lg"].includes(value),
     },
     disabled: {
       type: Boolean,

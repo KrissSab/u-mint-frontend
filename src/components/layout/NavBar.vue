@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import TheButton from "../shared/TheButton.vue";
 import SearchBar from "./SearchBar.vue";
 </script>
@@ -35,6 +35,7 @@ import SearchBar from "./SearchBar.vue";
 .vertical-line {
   padding: 0 1rem;
 }
+
 .nav-right-side,
 .nav-left-side {
   display: flex;
@@ -60,9 +61,11 @@ import SearchBar from "./SearchBar.vue";
 .left-align {
   text-align: left;
 }
+
 .center-align {
   text-align: center;
 }
+
 .right-align {
   justify-content: end;
 }
