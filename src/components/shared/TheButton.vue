@@ -21,6 +21,7 @@ export default {
           "primary",
           "secondary",
           "navigation",
+          "profile",
           "success",
           "danger",
           "warning",
@@ -68,9 +69,17 @@ export default {
 }
 
 .the-button--secondary {
-  border-radius: 0.75rem;
+  background-color: var(--secondary-color);
+  color: var(--light-text-color);
+}
+
+.the-button--profile {
   background-color: rgba(102, 51, 153, 0.2);
   color: var(--light-text-color);
+  padding: 0.75rem;
+  min-width: 48px;
+  height: 48px;
+  border-radius: 0.75rem;
 }
 
 .the-button--navigation {

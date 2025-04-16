@@ -1,5 +1,5 @@
 <template>
-  <section class="search-bar center-align">
+  <div class="search-bar">
     <div class="search-bar-container">
       <input
         class="search-bar-input"
@@ -27,7 +27,7 @@
         </svg>
       </span>
     </div>
-  </section>
+  </div>
 </template>
 
 <script setup lang="ts">

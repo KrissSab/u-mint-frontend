@@ -1,6 +1,6 @@
 <template>
   <div class="navbar">
-    <section class="nav-left-side">
+    <nav class="nav-left-side">
       <section class="logo-container left-align">
         <img src="/u-mint-white-logo.png" alt="app-logo" class="logo" />
         <img src="/u-mint-white-text.png" alt="app-text" class="logo-text" />
@@ -8,17 +8,16 @@
       <h1 class="vertical-line">│</h1>
       <TheButton variant="navigation" size="sm"> Create</TheButton>
       <TheButton variant="navigation" size="sm">News</TheButton>
-    </section>
+    </nav>
     <SearchBar />
-    <section class="nav-right-side right-align">
-      <TheButton variant="secondary" size="sm">Login</TheButton>
-    </section>
+    <ProfileNavigation />
   </div>
 </template>
 
 <script setup lang="ts">
 import TheButton from "../shared/TheButton.vue";
 import SearchBar from "./SearchBar.vue";
+import ProfileNavigation from "./ProfileNavigation.vue";
 </script>
 
 <style scoped>
@@ -60,13 +59,5 @@ import SearchBar from "./SearchBar.vue";
 
 .left-align {
   text-align: left;
-}
-
-.center-align {
-  text-align: center;
-}
-
-.right-align {
-  justify-content: end;
 }
 </style>
