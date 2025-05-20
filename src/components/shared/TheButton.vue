@@ -74,12 +74,15 @@ export default {
 }
 
 .the-button--profile {
-  background-color: rgba(102, 51, 153, 0.2);
-  color: var(--light-text-color);
+  display: flex;
+  align-items: center;
   padding: 0.75rem;
   min-width: 48px;
   height: 48px;
+  background-color: rgba(102, 51, 153, 0.2);
+  color: var(--light-text-color);
   border-radius: 0.75rem;
+  gap: 0.5rem;
 }
 
 .the-button--navigation {

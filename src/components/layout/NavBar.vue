@@ -1,10 +1,10 @@
 <template>
   <div class="navbar">
     <nav class="nav-left-side">
-      <section class="logo-container left-align">
+      <router-link to="/" class="logo-container left-align">
         <img src="/u-mint-white-logo.png" alt="app-logo" class="logo" />
         <img src="/u-mint-white-text.png" alt="app-text" class="logo-text" />
-      </section>
+      </router-link>
       <h1 class="vertical-line">│</h1>
       <TheButton variant="navigation" size="sm"> Create</TheButton>
       <TheButton variant="navigation" size="sm">News</TheButton>
@@ -45,6 +45,8 @@ import ProfileNavigation from "./ProfileNavigation.vue";
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .logo {
