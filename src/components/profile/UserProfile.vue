@@ -3,8 +3,12 @@
     <!-- Profile Header Section -->
     <div class="profile-header">
       <div class="profile-info">
-        <div class="profile-image">
-          <img src="" alt="Profile" />
+        <div class="profile-image-container">
+          <img
+            :src="`https://avatar.iran.liara.run/username?username=${userData.name}+ `"
+            alt="Profile"
+            class="profile-image"
+          />
         </div>
         <div class="profile-details">
           <h1>{{ userData.name || "Unnamed" }}</h1>
@@ -23,22 +27,38 @@
                 d="M240-160q-66 0-113-47T80-320v-320q0-66 47-113t113-47h480q66 0 113 47t47 113v320q0 66-47 113t-113 47H240Z"
               ></path>
             </svg>
-            <span class="wallet-address">{{ truncatedWalletAddress }}</span>
-            <button class="copy-button" @click="copyWalletAddress">
-              <svg
-                fill="currentColor"
-                height="16"
-                role="img"
-                viewBox="0 0 24 24"
-                width="16"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <title>Copy</title>
-                <path
-                  d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
-                ></path>
-              </svg>
-            </button>
+
+            <!-- Wallet connected state -->
+            <template v-if="hasWallet">
+              <span class="wallet-address">{{ truncatedWalletAddress }}</span>
+              <button class="copy-button" @click="copyWalletAddress">
+                <svg
+                  fill="currentColor"
+                  height="16"
+                  role="img"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <title>Copy</title>
+                  <path
+                    d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
+                  ></path>
+                </svg>
+              </button>
+              <button class="disconnect-button" @click="disconnectWallet">
+                Disconnect
+              </button>
+            </template>
+
+            <!-- No wallet connected state -->
+            <template v-else>
+              <span class="no-wallet">No wallet connected</span>
+              <button class="connect-button" @click="connectWallet">
+                <img src="" alt="Phantom" class="phantom-icon" />
+                Connect Phantom
+              </button>
+            </template>
           </div>
           <p class="joined-date">Joined {{ joinedDate }}</p>
         </div>
@@ -123,6 +143,27 @@
         </button>
       </div>
     </div>
+
+    <!-- Wallet Connection Modal -->
+    <div
+      v-if="showWalletModal"
+      class="wallet-modal-overlay"
+      @click="closeWalletModal"
+    >
+      <div class="wallet-modal" @click.stop>
+        <div class="wallet-modal-header">
+          <h2>Connect Wallet</h2>
+          <button class="close-button" @click="closeWalletModal">✕</button>
+        </div>
+        <div class="wallet-modal-body">
+          <button class="wallet-option" @click="connectPhantom">
+            <img src="/phantom-icon.png" alt="Phantom" class="wallet-logo" />
+            <span>Phantom</span>
+          </button>
+          <p v-if="walletError" class="wallet-error">{{ walletError }}</p>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -164,9 +205,30 @@ const collectionItems = ref([
 const searchQuery = ref("");
 const filterOption = ref("all");
 
+// Wallet connection
+const showWalletModal = ref(false);
+const walletError = ref("");
+const isConnecting = ref(false);
+
 // Computed properties
+const hasWallet = computed(() => {
+  return !!userData.walletAddress;
+});
+
 const truncatedWalletAddress = computed(() => {
-  return userData.walletAddress;
+  if (!userData.walletAddress) return "";
+
+  // If the address is already truncated, return as is
+  if (userData.walletAddress.includes("...")) {
+    return userData.walletAddress;
+  }
+
+  // Otherwise truncate it
+  const start = userData.walletAddress.substring(0, 6);
+  const end = userData.walletAddress.substring(
+    userData.walletAddress.length - 4
+  );
+  return `${start}...${end}`;
 });
 
 const joinedDate = computed(() => {
@@ -200,13 +262,68 @@ const filteredItems = computed(() => {
 
 // Methods
 const copyWalletAddress = () => {
-  navigator.clipboard.writeText(userData.walletAddress);
-  // Could add a toast notification here
+  if (userData.walletAddress) {
+    navigator.clipboard.writeText(userData.walletAddress);
+    // Could add a toast notification here
+  }
 };
 
 const resetSearch = () => {
   searchQuery.value = "";
   filterOption.value = "all";
+};
+
+const connectWallet = () => {
+  showWalletModal.value = true;
+  walletError.value = "";
+};
+
+const closeWalletModal = () => {
+  showWalletModal.value = false;
+  walletError.value = "";
+};
+
+const connectPhantom = async () => {
+  if (isConnecting.value) return;
+
+  isConnecting.value = true;
+  walletError.value = "";
+
+  try {
+    // Check if Phantom is installed
+    const isPhantomInstalled = window.phantom?.solana?.isPhantom;
+
+    if (!isPhantomInstalled) {
+      walletError.value =
+        "Phantom wallet is not installed. Please install it first.";
+      return;
+    }
+
+    // Connect to wallet using the store method
+    const walletAddress = await userStore.connectPhantomWallet();
+
+    // Update local user data
+    userData.walletAddress = walletAddress;
+
+    // Close the modal
+    closeWalletModal();
+  } catch (error: any) {
+    walletError.value = error.message || "Failed to connect wallet";
+  } finally {
+    isConnecting.value = false;
+  }
+};
+
+const disconnectWallet = async () => {
+  try {
+    // Disconnect using the store method
+    await userStore.disconnectWallet();
+
+    // Update local user data
+    userData.walletAddress = "";
+  } catch (error: any) {
+    console.error("Error disconnecting wallet:", error);
+  }
 };
 
 // Initialize user data from store
@@ -241,15 +358,17 @@ onMounted(() => {
   gap: 2rem;
 }
 
-.profile-image {
+.profile-image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  overflow: hidden;
   border: 3px solid var(--secondary-color);
 }
 
-.profile-image img {
+.profile-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -278,6 +397,11 @@ onMounted(() => {
   color: #666;
 }
 
+.no-wallet {
+  color: #999;
+  font-style: italic;
+}
+
 .copy-button {
   background: none;
   border: none;
@@ -290,6 +414,45 @@ onMounted(() => {
 
 .copy-button:hover {
   color: var(--secondary-color);
+}
+
+.connect-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: #9945ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.connect-button:hover {
+  background-color: #8034e8;
+}
+
+.disconnect-button {
+  background-color: transparent;
+  color: #ff4d4d;
+  border: 1px solid #ff4d4d;
+  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.disconnect-button:hover {
+  background-color: #ff4d4d;
+  color: white;
+}
+
+.phantom-icon {
+  width: 16px;
+  height: 16px;
 }
 
 .joined-date {
@@ -428,6 +591,83 @@ onMounted(() => {
 
 .back-button:hover {
   background-color: var(--secondary-light);
+}
+
+/* Wallet Modal Styles */
+.wallet-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.wallet-modal {
+  background-color: white;
+  border-radius: 12px;
+  width: 400px;
+  max-width: 90%;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.wallet-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.wallet-modal-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  color: #999;
+}
+
+.wallet-modal-body {
+  padding: 1.5rem;
+}
+
+.wallet-option {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.wallet-option:hover {
+  background-color: #f9f9f9;
+  border-color: #ddd;
+}
+
+.wallet-logo {
+  width: 32px;
+  height: 32px;
+}
+
+.wallet-error {
+  margin-top: 1rem;
+  color: #ff4d4d;
+  font-size: 0.9rem;
+  text-align: center;
 }
 
 @media (max-width: 768px) {
