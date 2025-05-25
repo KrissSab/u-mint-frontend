@@ -55,7 +55,7 @@ export const nftsApi = {
         nftData
       );
     }
-    return api.post<Nft>(`/nfts/${userId}`, nftData);
+    return api.post<Nft>(`/nfts/user/${userId}`, nftData);
   },
 
   // Get all NFTs
@@ -64,8 +64,8 @@ export const nftsApi = {
   },
 
   // Get NFTs by owner
-  getByOwner: async (ownerId: string): Promise<Nft[]> => {
-    return api.get<Nft[]>(`/nfts/owner/${ownerId}`);
+  getByOwner: async (userId: string): Promise<Nft[]> => {
+    return api.get<Nft[]>(`/nfts/user/${userId}`);
   },
 
   // Get NFTs by collection
@@ -76,7 +76,6 @@ export const nftsApi = {
   // Get a single NFT
   getOne: async (id: string): Promise<Nft> => {
     try {
-      // Use the direct endpoint we just added to the API
       return api.get<Nft>(`/nfts/${id}`);
     } catch (error) {
       console.error("Error fetching NFT:", error);
@@ -90,12 +89,23 @@ export const nftsApi = {
     userId: string,
     updateData: Partial<CreateNftDto>
   ): Promise<Nft> => {
-    return api.patch<Nft>(`/nfts/update/${id}/${userId}`, updateData);
+    return api.patch<Nft>(`/nfts/${id}/${userId}`, updateData);
   },
 
   // Delete an NFT
   delete: async (id: string, userId: string): Promise<void> => {
-    return api.delete<void>(`/nfts/delete/${id}/${userId}`);
+    return api.delete<void>(`/nfts/${id}/${userId}`);
+  },
+
+  // Delete an NFT by token ID and contract address
+  deleteByToken: async (
+    userId: string,
+    tokenId: string,
+    contractAddress: string
+  ): Promise<void> => {
+    return api.delete<void>(
+      `/nfts/user/${userId}/${tokenId}/${contractAddress}`
+    );
   },
 
   // Add NFT to collection
@@ -103,12 +113,24 @@ export const nftsApi = {
     nftId: string,
     collectionId: string
   ): Promise<Nft> => {
-    return api.post<Nft>(`/nfts/${nftId}/collection/${collectionId}`, {});
+    return api.post<Nft>(`/collections/${collectionId}/nft/${nftId}`, {});
   },
 
   // Remove NFT from collection
-  removeFromCollection: async (nftId: string): Promise<Nft> => {
-    return api.delete<Nft>(`/nfts/${nftId}/remove-from-collection`);
+  removeFromCollection: async (
+    nftId: string,
+    collectionId: string
+  ): Promise<Nft> => {
+    return api.delete<Nft>(`/collections/${collectionId}/nft/${nftId}`);
+  },
+
+  // Blockchain operations
+  mintOnBlockchain: async (nftId: string): Promise<Nft> => {
+    return api.post<Nft>(`/nfts/blockchain/mint/${nftId}`, {});
+  },
+
+  syncWithBlockchain: async (nftId: string): Promise<Nft> => {
+    return api.post<Nft>(`/nfts/blockchain/sync/${nftId}`, {});
   },
 };
 

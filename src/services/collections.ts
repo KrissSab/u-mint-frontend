@@ -69,15 +69,12 @@ export const collectionsApi = {
     userId: string,
     updateData: Partial<CreateCollectionDto>
   ): Promise<Collection> => {
-    return api.patch<Collection>(
-      `/collections/update/${id}/${userId}`,
-      updateData
-    );
+    return api.patch<Collection>(`/collections/${id}/${userId}`, updateData);
   },
 
   // Delete a collection
   delete: async (id: string, userId: string): Promise<void> => {
-    return api.delete<void>(`/collections/delete/${id}/${userId}`);
+    return api.delete<void>(`/collections/${id}/${userId}`);
   },
 
   // Add NFT to collection
@@ -90,7 +87,20 @@ export const collectionsApi = {
 
   // Remove NFT from collection
   removeNFT: async (collectionId: string, nftId: string): Promise<void> => {
-    return api.delete<void>(`/collections/${collectionId}/remove-nft/${nftId}`);
+    return api.delete<void>(`/collections/${collectionId}/nft/${nftId}`);
+  },
+
+  // Update collection stats
+  updateStats: async (id: string): Promise<Collection> => {
+    return api.post<Collection>(`/collections/${id}/update-stats`, {});
+  },
+
+  // Create collection on blockchain
+  createOnBlockchain: async (collectionId: string): Promise<Collection> => {
+    return api.post<Collection>(
+      `/collections/blockchain/create/${collectionId}`,
+      {}
+    );
   },
 };
 
