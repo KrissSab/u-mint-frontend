@@ -18,7 +18,7 @@
     <div v-else-if="nft" class="nft-content">
       <div class="nft-container">
         <div class="nft-image-container">
-          <img :src="nft.image" :alt="nft.name" class="nft-image" />
+          <img :src="nft.imageUrl" :alt="nft.name" class="nft-image" />
         </div>
         <div class="nft-details">
           <h1>{{ nft.name }}</h1>

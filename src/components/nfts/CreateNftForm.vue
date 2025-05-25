@@ -29,13 +29,13 @@
         <input
           type="url"
           id="image"
-          v-model="nftData.image"
+          v-model="nftData.imageUrl"
           required
           class="form-input"
           placeholder="https://example.com/nft-image.jpg"
         />
-        <div class="image-preview" v-if="nftData.image">
-          <img :src="nftData.image" alt="NFT Preview" />
+        <div class="image-preview" v-if="nftData.imageUrl">
+          <img :src="nftData.imageUrl" alt="NFT Preview" />
         </div>
       </div>
 
@@ -231,7 +231,7 @@ const errorMessage = ref("");
 const nftData = ref<CreateNftDto>({
   name: "",
   description: "",
-  image: "",
+  imageUrl: "",
   collectionId: props.preselectedCollectionId,
   isForSale: false,
   currency: "SOL",
@@ -248,7 +248,7 @@ const properties = ref<{ name: string; value: string }[]>([]);
 const isValidForm = computed(() => {
   return (
     nftData.value.name.trim().length > 0 &&
-    nftData.value.image.trim().length > 0
+    nftData.value.imageUrl.trim().length > 0
   );
 });
 

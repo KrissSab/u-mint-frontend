@@ -1,7 +1,7 @@
 <template>
   <div class="nft-card" @click="$emit('click', nft)">
     <div class="nft-image">
-      <img :src="nft.image" :alt="nft.name" />
+      <img :src="nft.imageUrl" :alt="nft.name" />
       <div v-if="nft.isForSale" class="sale-badge">
         <span>FOR SALE</span>
       </div>
