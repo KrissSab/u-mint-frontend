@@ -6,7 +6,26 @@
         <img src="/u-mint-white-text.png" alt="app-text" class="logo-text" />
       </router-link>
       <h1 class="vertical-line">│</h1>
-      <TheButton variant="navigation" size="sm"> Create</TheButton>
+      <router-link to="/collections">
+        <TheButton variant="navigation" size="sm">Collections</TheButton>
+      </router-link>
+
+      <!-- Create dropdown -->
+      <div class="dropdown">
+        <TheButton variant="navigation" size="sm" class="dropdown-trigger">
+          Create <span class="dropdown-arrow">▼</span>
+        </TheButton>
+        <div class="dropdown-content">
+          <router-link to="/collections" class="dropdown-item">
+            Create Collection
+          </router-link>
+          <div class="dropdown-divider"></div>
+          <router-link to="/create-nft" class="dropdown-item">
+            Create NFT
+          </router-link>
+        </div>
+      </div>
+
       <TheButton variant="navigation" size="sm">News</TheButton>
     </nav>
     <SearchBar />
@@ -61,5 +80,57 @@ import ProfileNavigation from "./ProfileNavigation.vue";
 
 .left-align {
   text-align: left;
+}
+
+/* Dropdown styles */
+.dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.dropdown-trigger {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+  margin-left: 0.25rem;
+}
+
+.dropdown-content {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 180px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dropdown:hover .dropdown-content {
+  display: block;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  color: var(--text-color);
+  transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f5f5;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: #eee;
+  margin: 0;
 }
 </style>

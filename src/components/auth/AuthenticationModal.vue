@@ -41,15 +41,15 @@
       <div class="modal-body">
         <div v-if="!codeSent">
           <div class="wallets">
-            <div class="wallet">
+            <div class="wallet" @click="connectWallet('phantom')">
               <img src="/phantom.svg" alt="" class="wallet-logo" />
               <p>Phantom</p>
             </div>
-            <div class="wallet">
+            <div class="wallet" @click="connectWallet('metamask')">
               <img src="/metamask-fox.svg" alt="" class="wallet-logo" />
               <p>Meta Mask</p>
             </div>
-            <div class="wallet">
+            <div class="wallet" @click="connectWallet('coinbase')">
               <img src="/coinbase.webp" alt="" class="wallet-logo" />
               <p>Coinbase Wallet</p>
             </div>
@@ -69,8 +69,11 @@
               class="email-submit"
               :class="{ 'has-content': email.length > 0 }"
               @click="handleEmailSubmit"
+              :disabled="isLoading"
             >
+              <span v-if="isLoading" class="loading-spinner"></span>
               <svg
+                v-else
                 fill="currentColor"
                 height="24"
                 role="img"
@@ -85,6 +88,7 @@
               </svg>
             </button>
           </div>
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
           <p class="email-info">
             If you haven't logged in using your email before, you will create a
             new wallet using this email.
@@ -117,16 +121,59 @@
 
           <button
             class="verify-button"
-            :disabled="!isCodeComplete"
+            :disabled="!isCodeComplete || isLoading"
             @click="verifyCode"
           >
-            Verify
+            <span v-if="isLoading" class="loading-spinner"></span>
+            <span v-else>Verify</span>
           </button>
+
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
 
           <p class="resend-code">
             Didn't receive the code?
             <span @click="resendCode" class="resend-link">Resend</span>
           </p>
+        </div>
+
+        <div v-if="showCompleteRegistration" class="complete-registration">
+          <p class="verification-title">Complete Registration</p>
+          <p class="verification-subtitle">
+            Set up your account details to complete registration
+          </p>
+
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input
+              id="username"
+              v-model="username"
+              type="text"
+              class="form-input"
+              placeholder="Choose a username"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input
+              id="password"
+              v-model="password"
+              type="password"
+              class="form-input"
+              placeholder="Create a strong password"
+            />
+          </div>
+
+          <button
+            class="complete-button"
+            :disabled="!canCompleteRegistration || isLoading"
+            @click="completeRegistration"
+          >
+            <span v-if="isLoading" class="loading-spinner"></span>
+            <span v-else>Complete Registration</span>
+          </button>
+
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
         </div>
       </div>
     </div>
@@ -135,14 +182,24 @@
 
 <script setup>
 import { ref, computed, onMounted } from "vue";
+import userStore from "../../store/userStore";
 
 const email = ref("");
 const codeSent = ref(false);
 const verificationCode = ref(["", "", "", ""]);
 const codeInputRefs = ref([]);
+const isLoading = ref(false);
+const errorMessage = ref("");
+const showCompleteRegistration = ref(false);
+const username = ref("");
+const password = ref("");
 
 const isCodeComplete = computed(() => {
   return verificationCode.value.every((digit) => digit.length === 1);
+});
+
+const canCompleteRegistration = computed(() => {
+  return username.value.length > 0 && password.value.length >= 8;
 });
 
 const props = defineProps({
@@ -157,21 +214,48 @@ const emit = defineEmits(["close", "authenticated"]);
 const close = () => {
   // Reset state when closing modal
   codeSent.value = false;
+  showCompleteRegistration.value = false;
   email.value = "";
   verificationCode.value = ["", "", "", ""];
+  username.value = "";
+  password.value = "";
+  errorMessage.value = "";
   emit("close");
 };
 
 const goBack = () => {
-  // Return to email input screen
-  codeSent.value = false;
+  if (showCompleteRegistration.value) {
+    // Go back to verification screen
+    showCompleteRegistration.value = false;
+  } else {
+    // Return to email input screen
+    codeSent.value = false;
+  }
+  errorMessage.value = "";
 };
 
-const handleEmailSubmit = () => {
+const handleEmailSubmit = async () => {
   if (email.value.length > 0 && email.value.includes("@")) {
-    // Here would be the API call to send verification code
-    // For now, we'll just simulate it
-    codeSent.value = true;
+    try {
+      isLoading.value = true;
+      errorMessage.value = "";
+
+      console.log(
+        `Connecting to API at ${import.meta.env.PROD ? "production" : "development"} environment`
+      );
+
+      // Call API to start registration process
+      await userStore.startRegistration(email.value);
+
+      // Show verification code input
+      codeSent.value = true;
+    } catch (error) {
+      errorMessage.value = error.message || "Failed to send verification code";
+    } finally {
+      isLoading.value = false;
+    }
+  } else {
+    errorMessage.value = "Please enter a valid email address";
   }
 };
 
@@ -199,30 +283,102 @@ const handleKeyDown = (event, index) => {
   }
 };
 
-const verifyCode = () => {
+const verifyCode = async () => {
   const code = verificationCode.value.join("");
-  // Here would be the API call to verify the code
-  console.log("Verifying code:", code);
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
 
-  // For demo purposes, we'll simulate a successful authentication
-  // In a real app, this would be an API call to verify the code
-  const user = {
-    email: email.value,
-    id: Math.random().toString(36).substring(2, 15),
-    name: email.value.split("@")[0],
-  };
+    // Call API to verify the code
+    await userStore.verifyEmail(code);
 
-  // Emit authenticated event with user data
-  emit("authenticated", user);
-
-  // Close modal
-  close();
+    // Show complete registration form
+    showCompleteRegistration.value = true;
+    codeSent.value = false;
+  } catch (error) {
+    errorMessage.value = error.message || "Invalid verification code";
+  } finally {
+    isLoading.value = false;
+  }
 };
 
-const resendCode = () => {
-  // Here would be the API call to resend the verification code
-  console.log("Resending code to:", email.value);
-  // For now, we'll just log it
+const completeRegistration = async () => {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    // Call API to complete registration
+    await userStore.completeRegistration(username.value, password.value);
+
+    // Emit authenticated event
+    emit("authenticated", userStore.state.user);
+
+    // Close modal
+    close();
+  } catch (error) {
+    errorMessage.value = error.message || "Failed to complete registration";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const resendCode = async () => {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    // Call API to resend verification code
+    await userStore.resendVerificationCode();
+
+    // Reset verification code inputs
+    verificationCode.value = ["", "", "", ""];
+  } catch (error) {
+    errorMessage.value = error.message || "Failed to resend verification code";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const connectWallet = async (type) => {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    let walletAddress;
+
+    if (type === "phantom") {
+      walletAddress = await userStore.connectPhantomWallet();
+      console.log(`Connected to ${type} wallet: ${walletAddress}`);
+    } else if (type === "metamask") {
+      walletAddress = await userStore.connectMetaMaskWallet();
+      console.log(`Connected to ${type} wallet: ${walletAddress}`);
+    } else {
+      // Implement other wallet connections
+      console.log(`${type} wallet connection not implemented yet`);
+      errorMessage.value = `${type} wallet integration coming soon`;
+      isLoading.value = false;
+      return;
+    }
+
+    // Emit authenticated event with user data
+    if (userStore.state.isAuthenticated && userStore.state.user) {
+      // If user has no email, suggest they add one in profile settings
+      if (!userStore.state.user.email) {
+        console.log("User authenticated with wallet but has no email address");
+      }
+
+      emit("authenticated", userStore.state.user);
+
+      // Close modal if successful
+      close();
+    } else {
+      errorMessage.value = "Authentication failed. Please try again.";
+    }
+  } catch (error) {
+    errorMessage.value = error.message || `Failed to connect ${type} wallet`;
+  } finally {
+    isLoading.value = false;
+  }
 };
 </script>
 
@@ -376,8 +532,13 @@ const resendCode = () => {
   background-color: var(--secondary-color);
 }
 
-.email-submit:hover {
+.email-submit:hover:not(:disabled) {
   background-color: var(--secondary-light);
+}
+
+.email-submit:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
 .email-info {
@@ -464,5 +625,80 @@ const resendCode = () => {
 
 .show-back-button {
   opacity: 0;
+}
+
+/* Complete registration form styles */
+.complete-registration {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem 0;
+  width: 100%;
+}
+
+.form-group {
+  width: 100%;
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: #555;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  box-shadow: 0 2px 5px rgba(102, 51, 153, 0.1);
+}
+
+.form-input:focus {
+  border-color: var(--secondary-color);
+  outline: none;
+}
+
+.complete-button {
+  width: 100%;
+  padding: 0.75rem;
+  border: none;
+  border-radius: 0.5rem;
+  background-color: var(--secondary-color);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  margin-bottom: 1rem;
+}
+
+.complete-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: #e74c3c;
+  font-size: 0.85rem;
+  margin: 0.5rem 0;
+  text-align: center;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

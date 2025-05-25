@@ -12,57 +12,25 @@
         </div>
         <div class="profile-details">
           <h1>{{ userData.name || "Unnamed" }}</h1>
-          <div class="wallet-info">
-            <svg
-              fill="currentColor"
-              height="20"
-              role="img"
-              viewBox="0 -960 960 960"
-              width="20"
-              xmlns="http://www.w3.org/2000/svg"
-              class="wallet-icon"
-            >
-              <title>Wallet</title>
-              <path
-                d="M240-160q-66 0-113-47T80-320v-320q0-66 47-113t113-47h480q66 0 113 47t47 113v320q0 66-47 113t-113 47H240Z"
-              ></path>
-            </svg>
 
-            <!-- Wallet connected state -->
-            <template v-if="hasWallet">
-              <span class="wallet-address">{{ truncatedWalletAddress }}</span>
-              <button class="copy-button" @click="copyWalletAddress">
-                <svg
-                  fill="currentColor"
-                  height="16"
-                  role="img"
-                  viewBox="0 0 24 24"
-                  width="16"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <title>Copy</title>
-                  <path
-                    d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"
-                  ></path>
-                </svg>
-              </button>
-              <button class="disconnect-button" @click="disconnectWallet">
-                Disconnect
-              </button>
-            </template>
+          <!-- New Wallet Info Component -->
+          <WalletInfo
+            @connect="showWalletModal = true"
+            @disconnect="refreshUserData"
+          />
 
-            <!-- No wallet connected state -->
-            <template v-else>
-              <span class="no-wallet">No wallet connected</span>
-              <button class="connect-button" @click="connectWallet">
-                <img src="" alt="Phantom" class="phantom-icon" />
-                Connect Phantom
-              </button>
-            </template>
-          </div>
           <p class="joined-date">Joined {{ joinedDate }}</p>
         </div>
       </div>
+    </div>
+
+    <!-- Profile Settings Section -->
+    <ProfileSettings v-if="showSettings" />
+
+    <div class="section-toggle">
+      <button @click="toggleSettings" class="toggle-button">
+        {{ showSettings ? "Hide Settings" : "Show Settings" }}
+      </button>
     </div>
 
     <!-- Collection Section -->
@@ -160,23 +128,38 @@
             <img src="/phantom-icon.png" alt="Phantom" class="wallet-logo" />
             <span>Phantom</span>
           </button>
+          <button class="wallet-option" @click="connectMetaMask">
+            <img src="/metamask-fox.svg" alt="MetaMask" class="wallet-logo" />
+            <span>MetaMask</span>
+          </button>
           <p v-if="walletError" class="wallet-error">{{ walletError }}</p>
         </div>
       </div>
     </div>
+
+    <!-- Authentication Modal for user registration/login -->
+    <AuthenticationModal
+      v-if="showAuthModal"
+      :show="showAuthModal"
+      @close="showAuthModal = false"
+      @authenticated="handleAuthentication"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted } from "vue";
 import userStore from "../../store/userStore";
+import WalletInfo from "./WalletInfo.vue";
+import ProfileSettings from "./ProfileSettings.vue";
+import AuthenticationModal from "../auth/AuthenticationModal.vue";
 
 // User data
 const userData = reactive({
   id: "",
   name: "",
   email: "",
-  walletAddress: "0xb8aa...d07F", // Example wallet address
+  walletAddress: "",
 });
 
 // Collection items
@@ -201,40 +184,18 @@ const collectionItems = ref([
   },
 ]);
 
-// Search and filter
+// UI state
+const showSettings = ref(false);
 const searchQuery = ref("");
 const filterOption = ref("all");
 
 // Wallet connection
 const showWalletModal = ref(false);
+const showAuthModal = ref(false);
 const walletError = ref("");
 const isConnecting = ref(false);
 
 // Computed properties
-const hasWallet = computed(() => {
-  return !!userData.walletAddress;
-});
-
-const truncatedWalletAddress = computed(() => {
-  if (!userData.walletAddress) return "";
-
-  // If the address is already truncated, return as is
-  if (userData.walletAddress.includes("...")) {
-    return userData.walletAddress;
-  }
-
-  // Otherwise truncate it
-  const start = userData.walletAddress.substring(0, 6);
-  const end = userData.walletAddress.substring(
-    userData.walletAddress.length - 4
-  );
-  return `${start}...${end}`;
-});
-
-const joinedDate = computed(() => {
-  return "May 2023";
-});
-
 const filteredItems = computed(() => {
   if (!searchQuery.value && filterOption.value === "all") {
     return collectionItems.value;
@@ -252,30 +213,54 @@ const filteredItems = computed(() => {
     );
   }
 
-  // Apply sorting
+  // Apply sort filter
   if (filterOption.value === "recent") {
-    filtered = [...filtered].reverse();
+    filtered = [...filtered].sort((a, b) => b.id - a.id);
+  } else if (filterOption.value === "oldest") {
+    filtered = [...filtered].sort((a, b) => a.id - b.id);
   }
 
   return filtered;
 });
 
-// Methods
-const copyWalletAddress = () => {
-  if (userData.walletAddress) {
-    navigator.clipboard.writeText(userData.walletAddress);
-    // Could add a toast notification here
-  }
-};
+const joinedDate = computed(() => {
+  return "May 2023";
+});
 
+// Methods
 const resetSearch = () => {
   searchQuery.value = "";
   filterOption.value = "all";
 };
 
-const connectWallet = () => {
-  showWalletModal.value = true;
-  walletError.value = "";
+const connectPhantom = async () => {
+  try {
+    walletError.value = "";
+    isConnecting.value = true;
+
+    await userStore.connectPhantomWallet();
+    showWalletModal.value = false;
+    refreshUserData();
+  } catch (error: any) {
+    walletError.value = error.message || "Failed to connect Phantom wallet";
+  } finally {
+    isConnecting.value = false;
+  }
+};
+
+const connectMetaMask = async () => {
+  try {
+    walletError.value = "";
+    isConnecting.value = true;
+
+    await userStore.connectMetaMaskWallet();
+    showWalletModal.value = false;
+    refreshUserData();
+  } catch (error: any) {
+    walletError.value = error.message || "Failed to connect MetaMask wallet";
+  } finally {
+    isConnecting.value = false;
+  }
 };
 
 const closeWalletModal = () => {
@@ -283,61 +268,56 @@ const closeWalletModal = () => {
   walletError.value = "";
 };
 
-const connectPhantom = async () => {
-  if (isConnecting.value) return;
-
-  isConnecting.value = true;
-  walletError.value = "";
-
-  try {
-    // Check if Phantom is installed
-    const isPhantomInstalled = window.phantom?.solana?.isPhantom;
-
-    if (!isPhantomInstalled) {
-      walletError.value =
-        "Phantom wallet is not installed. Please install it first.";
-      return;
-    }
-
-    // Connect to wallet using the store method
-    const walletAddress = await userStore.connectPhantomWallet();
-
-    // Update local user data
-    userData.walletAddress = walletAddress;
-
-    // Close the modal
-    closeWalletModal();
-  } catch (error: any) {
-    walletError.value = error.message || "Failed to connect wallet";
-  } finally {
-    isConnecting.value = false;
-  }
-};
-
-const disconnectWallet = async () => {
-  try {
-    // Disconnect using the store method
-    await userStore.disconnectWallet();
-
-    // Update local user data
-    userData.walletAddress = "";
-  } catch (error: any) {
-    console.error("Error disconnecting wallet:", error);
-  }
-};
-
-// Initialize user data from store
-onMounted(() => {
+const refreshUserData = () => {
   if (userStore.state.user) {
     userData.id = userStore.state.user.id;
-    userData.name = userStore.state.user.name;
-    userData.email = userStore.state.user.email;
+    userData.name =
+      userStore.state.user.name || userStore.state.user.username || "";
+    userData.email = userStore.state.user.email || "";
     userData.walletAddress = userStore.state.user.walletAddress || "";
   }
+};
+
+const handleAuthentication = (user: any) => {
+  refreshUserData();
+  showAuthModal.value = false;
+};
+
+const toggleSettings = () => {
+  showSettings.value = !showSettings.value;
+};
+
+// Initialize
+onMounted(() => {
+  // Load user data on component mount
+  refreshUserData();
 });
 </script>
 
 <style scoped>
+/* Add new styles for the settings toggle */
+.section-toggle {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.toggle-button {
+  padding: 0.5rem 1rem;
+  background-color: var(--secondary-color, #6633cc);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.toggle-button:hover {
+  background-color: var(--secondary-light, #7744dd);
+}
+
+/* Keep existing styles */
 .profile-container {
   max-width: 1200px;
   margin: 2rem auto;
@@ -651,6 +631,7 @@ onMounted(() => {
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.2s;
+  margin-bottom: 1rem;
 }
 
 .wallet-option:hover {
