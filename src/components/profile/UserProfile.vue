@@ -33,9 +33,9 @@
       </button>
     </div>
 
-    <!-- Collection Section -->
+    <!-- Collections Section -->
     <div class="collection-section">
-      <h2>Collection</h2>
+      <h2>My Collections</h2>
 
       <!-- Search and Filter Bar -->
       <div class="search-bar">
@@ -56,7 +56,7 @@
           </svg>
           <input
             type="text"
-            placeholder="Search items..."
+            placeholder="Search collections..."
             v-model="searchQuery"
             class="search-input"
           />
@@ -64,24 +64,38 @@
 
         <div class="filter-options">
           <select v-model="filterOption" class="filter-select">
-            <option value="all">All Items</option>
+            <option value="all">All Collections</option>
             <option value="recent">Recently Added</option>
             <option value="oldest">Oldest First</option>
           </select>
         </div>
       </div>
 
-      <!-- Collection Items Grid -->
-      <div v-if="filteredItems.length > 0" class="collection-grid">
+      <!-- Loading State -->
+      <div v-if="isLoading" class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading collections...</p>
+      </div>
+
+      <!-- Collections Grid -->
+      <div v-else-if="filteredCollections.length > 0" class="collection-grid">
         <div
-          v-for="item in filteredItems"
-          :key="item.id"
+          v-for="collection in filteredCollections"
+          :key="collection._id"
           class="collection-item"
+          @click="navigateToCollection(collection._id)"
         >
-          <img :src="item.image" :alt="item.name" class="item-image" />
+          <img
+            :src="collection.profileImage || '/default-collection-profile.jpg'"
+            :alt="collection.name"
+            class="item-image"
+          />
           <div class="item-info">
-            <h3>{{ item.name }}</h3>
-            <p class="item-chain">{{ item.chain }}</p>
+            <h3>{{ collection.name }}</h3>
+            <p class="item-stats">
+              {{ collection.totalItems }} Items | Floor:
+              {{ collection.floorPrice }}
+            </p>
           </div>
         </div>
       </div>
@@ -105,10 +119,21 @@
             d="M14.14 12.25l-2.79 2.79c-.2.2-.51.2-.71 0l-1.79-1.79c-.2-.2-.2-.51 0-.71s.51-.2.71 0l1.44 1.44 2.43-2.44c.2-.2.51-.2.71 0 .19.2.19.52 0 .71z"
           ></path>
         </svg>
-        <p>No items found</p>
-        <button class="back-button" @click="resetSearch">
-          Back to all items
-        </button>
+        <p>
+          {{
+            searchQuery
+              ? "No collections found matching your search"
+              : "You haven't created any collections yet"
+          }}
+        </p>
+        <div class="empty-actions">
+          <button class="back-button" @click="resetSearch" v-if="searchQuery">
+            Back to all collections
+          </button>
+          <router-link to="/collections" class="create-button">
+            Create Collection
+          </router-link>
+        </div>
       </div>
     </div>
 
@@ -125,7 +150,7 @@
         </div>
         <div class="wallet-modal-body">
           <button class="wallet-option" @click="connectPhantom">
-            <img src="/phantom-icon.png" alt="Phantom" class="wallet-logo" />
+            <img src="/phantom-icon.svg" alt="Phantom" class="wallet-logo" />
             <span>Phantom</span>
           </button>
           <button class="wallet-option" @click="connectMetaMask">
@@ -149,10 +174,16 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted } from "vue";
+import { useRouter } from "vue-router";
 import userStore from "../../store/userStore";
 import WalletInfo from "./WalletInfo.vue";
 import ProfileSettings from "./ProfileSettings.vue";
 import AuthenticationModal from "../auth/AuthenticationModal.vue";
+import collectionsApi from "../../services/collections";
+import type { Collection } from "../../services/collections";
+
+// Router
+const router = useRouter();
 
 // User data
 const userData = reactive({
@@ -162,27 +193,9 @@ const userData = reactive({
   walletAddress: "",
 });
 
-// Collection items
-const collectionItems = ref([
-  {
-    id: 1,
-    name: "Digital Art #1",
-    image: "",
-    chain: "Ethereum",
-  },
-  {
-    id: 2,
-    name: "Collectible #42",
-    image: "",
-    chain: "Solana",
-  },
-  {
-    id: 3,
-    name: "Artwork Series",
-    image: "",
-    chain: "Polygon",
-  },
-]);
+// Collections
+const myCollections = ref<Collection[]>([]);
+const isLoading = ref(false);
 
 // UI state
 const showSettings = ref(false);
@@ -196,28 +209,35 @@ const walletError = ref("");
 const isConnecting = ref(false);
 
 // Computed properties
-const filteredItems = computed(() => {
+const filteredCollections = computed(() => {
   if (!searchQuery.value && filterOption.value === "all") {
-    return collectionItems.value;
+    return myCollections.value;
   }
 
-  let filtered = collectionItems.value;
+  let filtered = myCollections.value;
 
   // Apply search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) ||
-        item.chain.toLowerCase().includes(query)
+      (collection) =>
+        collection.name.toLowerCase().includes(query) ||
+        (collection.description &&
+          collection.description.toLowerCase().includes(query))
     );
   }
 
   // Apply sort filter
   if (filterOption.value === "recent") {
-    filtered = [...filtered].sort((a, b) => b.id - a.id);
+    filtered = [...filtered].sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
   } else if (filterOption.value === "oldest") {
-    filtered = [...filtered].sort((a, b) => a.id - b.id);
+    filtered = [...filtered].sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
   }
 
   return filtered;
@@ -231,6 +251,23 @@ const joinedDate = computed(() => {
 const resetSearch = () => {
   searchQuery.value = "";
   filterOption.value = "all";
+};
+
+const fetchUserCollections = async () => {
+  if (!userData.id) return;
+
+  try {
+    isLoading.value = true;
+    myCollections.value = await collectionsApi.getByCreator(userData.id);
+  } catch (error: any) {
+    console.error("Error fetching collections:", error);
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const navigateToCollection = (collectionId: string) => {
+  router.push(`/collections/${collectionId}`);
 };
 
 const connectPhantom = async () => {
@@ -275,6 +312,9 @@ const refreshUserData = () => {
       userStore.state.user.name || userStore.state.user.username || "";
     userData.email = userStore.state.user.email || "";
     userData.walletAddress = userStore.state.user.walletAddress || "";
+
+    // Fetch collections after user data is refreshed
+    fetchUserCollections();
   }
 };
 
@@ -538,7 +578,7 @@ onMounted(() => {
   color: var(--text-color);
 }
 
-.item-chain {
+.item-stats {
   margin: 0;
   font-size: 0.85rem;
   color: #666;
@@ -558,8 +598,14 @@ onMounted(() => {
   opacity: 0.5;
 }
 
-.back-button {
+.empty-actions {
+  display: flex;
+  gap: 1rem;
   margin-top: 1rem;
+}
+
+.back-button,
+.create-button {
   padding: 0.5rem 1rem;
   background-color: var(--secondary-color);
   color: white;
@@ -567,10 +613,36 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
+  text-decoration: none;
 }
 
-.back-button:hover {
+.back-button:hover,
+.create-button:hover {
   background-color: var(--secondary-light);
+}
+
+/* Loading state */
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 0;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: var(--secondary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Wallet Modal Styles */
