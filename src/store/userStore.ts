@@ -81,22 +81,74 @@ const actions = {
     localStorage.removeItem("user");
   },
 
+  // Login with email and password
+  async loginWithEmail(email: string, password: string) {
+    try {
+      // Call API to login with email/password
+      const loginResponse = (await authApi.login({
+        email,
+        password,
+      })) as any;
+
+      // Extract user data from response
+      const userData = loginResponse.user || loginResponse;
+
+      // Login the user with the returned data
+      this.login({
+        id: userData._id,
+        email: userData.email,
+        name: userData.username,
+        username: userData.username,
+        walletAddress: userData.wallets?.[0]?.address,
+      });
+
+      console.log("Successfully logged in with email:", userData);
+      return true;
+    } catch (error: any) {
+      console.error("Error logging in with email:", error);
+      throw error;
+    }
+  },
+
   // Initialize store from localStorage on app start
-  init() {
+  async init() {
+    // First load user from localStorage if available
     const savedUser = localStorage.getItem("user");
     if (savedUser) {
       try {
         const userData = JSON.parse(savedUser) as User;
         state.user = userData;
         state.isAuthenticated = true;
+        console.log("User loaded from localStorage:", userData);
       } catch (e) {
         console.error("Failed to parse user data from localStorage");
         localStorage.removeItem("user");
       }
     }
 
-    // Check if Phantom wallet is already connected
-    this.checkWalletConnection();
+    // Then check if any wallet is connected
+    await this.checkWalletConnection();
+
+    // If we have wallet connected but no user data, try to authenticate with the wallet
+    if (state.wallet.isConnected && (!state.isAuthenticated || !state.user)) {
+      console.log(
+        "Wallet connected but no user data, attempting to authenticate"
+      );
+      try {
+        if (state.wallet.type === "phantom") {
+          await this.connectPhantomWallet();
+        } else if (state.wallet.type === "metamask") {
+          await this.connectMetaMaskWallet();
+        }
+      } catch (error) {
+        console.error("Failed to authenticate with connected wallet:", error);
+      }
+    }
+
+    // If we have both user and wallet connected, ensure wallet address is in user data
+    if (state.isAuthenticated && state.user && state.wallet.isConnected) {
+      console.log("Both user and wallet detected on startup");
+    }
   },
 
   // Connect to Phantom wallet
@@ -123,18 +175,37 @@ const actions = {
       state.wallet.provider = provider;
       state.wallet.type = "phantom";
 
-      // If user is already authenticated, just update the wallet address
-      if (state.isAuthenticated && state.user) {
-        const updatedUser = {
-          ...state.user,
-          walletAddress,
-        };
-        this.login(updatedUser);
-        return walletAddress;
-      }
+      try {
+        // Try to login with the wallet
+        const loginResponse = (await authApi.loginWithWallet({
+          type: "phantom",
+          address: walletAddress,
+        })) as any;
 
-      // Otherwise, register a new user with this wallet
-      return await this.registerWithWallet(walletAddress, "phantom");
+        // Extract user data from response
+        const userData = loginResponse.user || loginResponse;
+
+        // Login the user with the returned data
+        this.login({
+          id: userData._id,
+          email: userData.email || "",
+          name: userData.username,
+          username: userData.username,
+          walletAddress: userData.wallets?.[0]?.address || walletAddress,
+        });
+
+        console.log("Successfully logged in with wallet:", userData);
+        return walletAddress;
+      } catch (error: any) {
+        // If login fails, the user might not exist - register them
+        if (
+          error.message.includes("not found") ||
+          error.message.includes("does not exist")
+        ) {
+          return await this.registerWithWallet(walletAddress, "phantom");
+        }
+        throw error;
+      }
     } catch (error) {
       console.error("Error connecting to Phantom wallet:", error);
       throw error;
@@ -150,7 +221,7 @@ const actions = {
       const tempUsername = `user_${walletAddress.substring(0, 8)}`;
 
       // Create user with wallet only (no email required)
-      const userData = (await authApi.create({
+      const registerResponse = (await authApi.create({
         username: tempUsername,
         // We don't provide email when registering with wallet
         password: Math.random().toString(36).substring(2, 15), // Generate random password
@@ -158,7 +229,10 @@ const actions = {
           type: walletType,
           address: walletAddress,
         },
-      })) as UserResponse;
+      })) as any;
+
+      // Extract user data from response
+      const userData = registerResponse.user || registerResponse;
 
       // Login the user with the returned data
       this.login({
@@ -166,7 +240,7 @@ const actions = {
         email: userData.email || "", // Email might be empty
         name: userData.username,
         username: userData.username,
-        walletAddress: userData.wallets?.[0]?.address,
+        walletAddress: userData.wallets?.[0]?.address || walletAddress,
       });
 
       console.log("User registered with wallet successfully");
@@ -206,18 +280,37 @@ const actions = {
       state.wallet.provider = window.ethereum;
       state.wallet.type = "metamask";
 
-      // If user is already authenticated, just update the wallet address
-      if (state.isAuthenticated && state.user) {
-        const updatedUser = {
-          ...state.user,
-          walletAddress,
-        };
-        this.login(updatedUser);
-        return walletAddress;
-      }
+      try {
+        // Try to login with the wallet
+        const loginResponse = (await authApi.loginWithWallet({
+          type: "metamask",
+          address: walletAddress,
+        })) as any;
 
-      // Otherwise, register a new user with this wallet
-      return await this.registerWithWallet(walletAddress, "metamask");
+        // Extract user data from response
+        const userData = loginResponse.user || loginResponse;
+
+        // Login the user with the returned data
+        this.login({
+          id: userData._id,
+          email: userData.email || "",
+          name: userData.username,
+          username: userData.username,
+          walletAddress: userData.wallets?.[0]?.address || walletAddress,
+        });
+
+        console.log("Successfully logged in with wallet:", userData);
+        return walletAddress;
+      } catch (error: any) {
+        // If login fails, the user might not exist - register them
+        if (
+          error.message.includes("not found") ||
+          error.message.includes("does not exist")
+        ) {
+          return await this.registerWithWallet(walletAddress, "metamask");
+        }
+        throw error;
+      }
     } catch (error) {
       console.error("Error connecting to MetaMask wallet:", error);
       throw error;
@@ -246,25 +339,86 @@ const actions = {
   },
 
   // Check if wallet is already connected
-  checkWalletConnection() {
-    // Check Phantom
-    const isPhantomInstalled = window.phantom?.solana?.isPhantom;
-    if (isPhantomInstalled) {
-      const provider = window.phantom?.solana;
-      if (provider && provider.isConnected) {
-        state.wallet.isConnected = true;
-        state.wallet.provider = provider;
-        state.wallet.type = "phantom";
-        return;
-      }
-    }
+  async checkWalletConnection() {
+    try {
+      // Check Phantom
+      const isPhantomInstalled = window.phantom?.solana?.isPhantom;
+      if (isPhantomInstalled) {
+        const provider = window.phantom?.solana;
+        if (provider && provider.isConnected) {
+          // Get the wallet address
+          try {
+            // Need to check if we can get the public key
+            // This is a workaround since TypeScript doesn't know about this property
+            const publicKey = (provider as any).publicKey;
+            if (publicKey) {
+              const walletAddress = publicKey.toString();
 
-    // Check MetaMask
-    if (window.ethereum && window.ethereum.isConnected()) {
-      state.wallet.isConnected = true;
-      state.wallet.provider = window.ethereum;
-      state.wallet.type = "metamask";
-      return;
+              // Update wallet state
+              state.wallet.isConnected = true;
+              state.wallet.provider = provider;
+              state.wallet.type = "phantom";
+
+              // If user is already authenticated but wallet address is missing, update it
+              if (
+                state.isAuthenticated &&
+                state.user &&
+                !state.user.walletAddress
+              ) {
+                const updatedUser = { ...state.user, walletAddress };
+                this.login(updatedUser);
+              }
+
+              console.log(
+                "Phantom wallet detected on page load:",
+                walletAddress
+              );
+              return;
+            }
+          } catch (error) {
+            console.error("Error getting Phantom wallet address:", error);
+          }
+        }
+      }
+
+      // Check MetaMask
+      if (window.ethereum && window.ethereum.isConnected()) {
+        try {
+          // Get accounts without prompting user
+          const accounts = await window.ethereum.request({
+            method: "eth_accounts", // This doesn't prompt, unlike eth_requestAccounts
+          });
+
+          if (accounts && accounts.length > 0) {
+            const walletAddress = accounts[0];
+
+            // Update wallet state
+            state.wallet.isConnected = true;
+            state.wallet.provider = window.ethereum;
+            state.wallet.type = "metamask";
+
+            // If user is already authenticated but wallet address is missing, update it
+            if (
+              state.isAuthenticated &&
+              state.user &&
+              !state.user.walletAddress
+            ) {
+              const updatedUser = { ...state.user, walletAddress };
+              this.login(updatedUser);
+            }
+
+            console.log(
+              "MetaMask wallet detected on page load:",
+              walletAddress
+            );
+            return;
+          }
+        } catch (error) {
+          console.error("Error getting MetaMask accounts:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Error checking wallet connection:", error);
     }
   },
 

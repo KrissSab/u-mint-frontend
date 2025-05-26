@@ -6,7 +6,7 @@
           <button
             @click="goBack"
             class="back-button"
-            :class="{ 'show-back-button': !codeSent }"
+            :class="{ 'show-back-button': currentView === 'initial' }"
           >
             <svg
               width="24"
@@ -39,7 +39,8 @@
         <span>Connect to U-Mint</span>
       </div>
       <div class="modal-body">
-        <div v-if="!codeSent">
+        <!-- Initial View - Choose connection method -->
+        <div v-if="currentView === 'initial'">
           <div class="wallets">
             <div class="wallet" @click="connectWallet('phantom')">
               <img src="/phantom.svg" alt="" class="wallet-logo" />
@@ -64,6 +65,7 @@
               v-model="email"
               placeholder="Continue with email"
               class="email-input"
+              @keyup.enter="handleEmailSubmit"
             />
             <button
               class="email-submit"
@@ -90,12 +92,62 @@
           </div>
           <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
           <p class="email-info">
-            If you haven't logged in using your email before, you will create a
-            new wallet using this email.
+            Enter your email to sign in or create a new account
           </p>
         </div>
 
-        <div v-else class="verification-container">
+        <!-- Email Login View -->
+        <div v-if="currentView === 'email-login'" class="login-container">
+          <p class="verification-title">Sign In</p>
+          <p class="verification-subtitle">Enter your password to login</p>
+
+          <div class="form-group">
+            <label for="email">Email</label>
+            <input
+              id="email"
+              v-model="email"
+              type="email"
+              class="form-input"
+              readonly
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="login-password">Password</label>
+            <input
+              id="login-password"
+              v-model="password"
+              type="password"
+              class="form-input"
+              placeholder="Enter your password"
+              @keyup.enter="loginWithEmail"
+            />
+          </div>
+
+          <button
+            class="login-button"
+            :disabled="!canLogin || isLoading"
+            @click="loginWithEmail"
+          >
+            <span v-if="isLoading" class="loading-spinner"></span>
+            <span v-else>Sign In</span>
+          </button>
+
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+          <div class="auth-options">
+            <p class="signup-option">
+              Don't have an account?
+              <span @click="switchToSignup" class="signup-link">Sign Up</span>
+            </p>
+          </div>
+        </div>
+
+        <!-- Email Verification View -->
+        <div
+          v-if="currentView === 'verification'"
+          class="verification-container"
+        >
           <p class="verification-title">Verification Code</p>
           <p class="verification-subtitle">
             Enter the 4-digit code sent to {{ email }}
@@ -134,9 +186,20 @@
             Didn't receive the code?
             <span @click="resendCode" class="resend-link">Resend</span>
           </p>
+
+          <div class="auth-options">
+            <p class="signin-option">
+              Already have an account?
+              <span @click="switchToLogin" class="signin-link">Sign In</span>
+            </p>
+          </div>
         </div>
 
-        <div v-if="showCompleteRegistration" class="complete-registration">
+        <!-- Registration Completion View -->
+        <div
+          v-if="currentView === 'registration'"
+          class="complete-registration"
+        >
           <p class="verification-title">Complete Registration</p>
           <p class="verification-subtitle">
             Set up your account details to complete registration
@@ -161,6 +224,7 @@
               type="password"
               class="form-input"
               placeholder="Create a strong password"
+              @keyup.enter="completeRegistration"
             />
           </div>
 
@@ -174,6 +238,13 @@
           </button>
 
           <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+
+          <div class="auth-options">
+            <p class="signin-option">
+              Already have an account?
+              <span @click="switchToLogin" class="signin-link">Sign In</span>
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -183,16 +254,16 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import userStore from "../../store/userStore";
+import { authApi } from "../../services/api";
 
 const email = ref("");
-const codeSent = ref(false);
+const password = ref("");
+const currentView = ref("initial");
 const verificationCode = ref(["", "", "", ""]);
 const codeInputRefs = ref([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
-const showCompleteRegistration = ref(false);
 const username = ref("");
-const password = ref("");
 
 const isCodeComplete = computed(() => {
   return verificationCode.value.every((digit) => digit.length === 1);
@@ -200,6 +271,10 @@ const isCodeComplete = computed(() => {
 
 const canCompleteRegistration = computed(() => {
   return username.value.length > 0 && password.value.length >= 8;
+});
+
+const canLogin = computed(() => {
+  return email.value.length > 0 && password.value.length > 0;
 });
 
 const props = defineProps({
@@ -213,25 +288,53 @@ const emit = defineEmits(["close", "authenticated"]);
 
 const close = () => {
   // Reset state when closing modal
-  codeSent.value = false;
-  showCompleteRegistration.value = false;
-  email.value = "";
-  verificationCode.value = ["", "", "", ""];
-  username.value = "";
-  password.value = "";
-  errorMessage.value = "";
+  resetState();
   emit("close");
 };
 
+const resetState = () => {
+  currentView.value = "initial";
+  email.value = "";
+  password.value = "";
+  verificationCode.value = ["", "", "", ""];
+  username.value = "";
+  errorMessage.value = "";
+};
+
 const goBack = () => {
-  if (showCompleteRegistration.value) {
+  if (currentView.value === "registration") {
     // Go back to verification screen
-    showCompleteRegistration.value = false;
-  } else {
+    currentView.value = "verification";
+  } else if (currentView.value === "verification") {
     // Return to email input screen
-    codeSent.value = false;
+    currentView.value = "initial";
+  } else if (currentView.value === "email-login") {
+    // Return to initial screen
+    currentView.value = "initial";
   }
   errorMessage.value = "";
+};
+
+// Check if a user exists with the given email
+const checkUserExists = async (email) => {
+  try {
+    // Use a simple trick - try to resend verification code for the email
+    // If it fails with "user not found" error, the user doesn't exist
+    await authApi.resendVerificationCode(email);
+    return true; // User exists because no error was thrown
+  } catch (error) {
+    // If the error contains "not found" or similar, user doesn't exist
+    if (
+      error.message &&
+      (error.message.includes("not found") ||
+        error.message.includes("does not exist") ||
+        error.message.includes("no user"))
+    ) {
+      return false;
+    }
+    // For other errors, assume user exists
+    return true;
+  }
 };
 
 const handleEmailSubmit = async () => {
@@ -240,23 +343,68 @@ const handleEmailSubmit = async () => {
       isLoading.value = true;
       errorMessage.value = "";
 
-      console.log(
-        `Connecting to API at ${import.meta.env.PROD ? "production" : "development"} environment`
-      );
+      // Check if user exists with this email
+      const userExists = await checkUserExists(email.value);
 
-      // Call API to start registration process
-      await userStore.startRegistration(email.value);
-
-      // Show verification code input
-      codeSent.value = true;
+      if (userExists) {
+        // If user exists, go to login view
+        currentView.value = "email-login";
+      } else {
+        // If user doesn't exist, start registration process
+        await userStore.startRegistration(email.value);
+        currentView.value = "verification";
+      }
     } catch (error) {
-      errorMessage.value = error.message || "Failed to send verification code";
+      console.error("Error processing email:", error);
+      errorMessage.value = error.message || "Failed to process email";
     } finally {
       isLoading.value = false;
     }
   } else {
     errorMessage.value = "Please enter a valid email address";
   }
+};
+
+const loginWithEmail = async () => {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    // Login with email and password
+    await userStore.loginWithEmail(email.value, password.value);
+
+    // Emit authenticated event
+    emit("authenticated", userStore.state.user);
+
+    // Close modal
+    close();
+  } catch (error) {
+    errorMessage.value =
+      error.message || "Login failed. Check your credentials.";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const switchToSignup = async () => {
+  try {
+    isLoading.value = true;
+    errorMessage.value = "";
+
+    // Switch to the registration flow
+    await userStore.startRegistration(email.value);
+    currentView.value = "verification";
+  } catch (error) {
+    errorMessage.value = error.message || "Failed to start registration";
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+const switchToLogin = () => {
+  // Switch directly to login view
+  currentView.value = "email-login";
+  errorMessage.value = "";
 };
 
 const handleCodeInput = (index) => {
@@ -293,8 +441,7 @@ const verifyCode = async () => {
     await userStore.verifyEmail(code);
 
     // Show complete registration form
-    showCompleteRegistration.value = true;
-    codeSent.value = false;
+    currentView.value = "registration";
   } catch (error) {
     errorMessage.value = error.message || "Invalid verification code";
   } finally {
@@ -352,7 +499,7 @@ const connectWallet = async (type) => {
     } else if (type === "metamask") {
       walletAddress = await userStore.connectMetaMaskWallet();
       console.log(`Connected to ${type} wallet: ${walletAddress}`);
-    } else {
+    } else if (type === "coinbase") {
       // Implement other wallet connections
       console.log(`${type} wallet connection not implemented yet`);
       errorMessage.value = `${type} wallet integration coming soon`;
@@ -360,21 +507,23 @@ const connectWallet = async (type) => {
       return;
     }
 
-    // Emit authenticated event with user data
+    // Check if we have authenticated with wallet
     if (userStore.state.isAuthenticated && userStore.state.user) {
-      // If user has no email, suggest they add one in profile settings
-      if (!userStore.state.user.email) {
-        console.log("User authenticated with wallet but has no email address");
-      }
+      console.log(
+        "Successfully authenticated with wallet:",
+        userStore.state.user
+      );
 
+      // Emit authenticated event with user data
       emit("authenticated", userStore.state.user);
 
-      // Close modal if successful
+      // Close modal
       close();
     } else {
       errorMessage.value = "Authentication failed. Please try again.";
     }
   } catch (error) {
+    console.error(`Failed to connect ${type} wallet:`, error);
     errorMessage.value = error.message || `Failed to connect ${type} wallet`;
   } finally {
     isLoading.value = false;
@@ -552,7 +701,8 @@ const connectWallet = async (type) => {
 }
 
 /* Verification code styles */
-.verification-container {
+.verification-container,
+.login-container {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -595,7 +745,8 @@ const connectWallet = async (type) => {
   outline: none;
 }
 
-.verify-button {
+.verify-button,
+.login-button {
   width: 100%;
   padding: 0.75rem;
   border: none;
@@ -607,7 +758,8 @@ const connectWallet = async (type) => {
   margin-bottom: 1rem;
 }
 
-.verify-button:disabled {
+.verify-button:disabled,
+.login-button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
 }
@@ -617,10 +769,24 @@ const connectWallet = async (type) => {
   color: #666;
 }
 
-.resend-link {
+.resend-link,
+.signup-link,
+.signin-link {
   color: var(--secondary-color);
   cursor: pointer;
   text-decoration: underline;
+}
+
+.auth-options {
+  margin-top: 1.5rem;
+  width: 100%;
+  text-align: center;
+}
+
+.signup-option,
+.signin-option {
+  font-size: 0.85rem;
+  color: #666;
 }
 
 .show-back-button {

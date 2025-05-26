@@ -307,6 +307,7 @@ const closeWalletModal = () => {
 
 const refreshUserData = () => {
   if (userStore.state.user) {
+    console.log("Refreshing user data from store:", userStore.state.user);
     userData.id = userStore.state.user.id;
     userData.name =
       userStore.state.user.name || userStore.state.user.username || "";
@@ -315,6 +316,8 @@ const refreshUserData = () => {
 
     // Fetch collections after user data is refreshed
     fetchUserCollections();
+  } else {
+    console.log("No user data available in store");
   }
 };
 

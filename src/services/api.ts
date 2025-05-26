@@ -62,6 +62,26 @@ export const authApi = {
     return handleResponse(response);
   },
 
+  // Login with email and password
+  login: async (loginData: { email: string; password: string }) => {
+    const response = await fetchWithCorsHandling(
+      `${API_URL}/users/login`,
+      createFetchOptions("POST", loginData)
+    );
+    return handleResponse(response);
+  },
+
+  // Login with wallet
+  loginWithWallet: async (walletData: { type: string; address: string }) => {
+    const response = await fetchWithCorsHandling(
+      `${API_URL}/users/login/wallet`,
+      createFetchOptions("POST", {
+        ...walletData,
+      })
+    );
+    return handleResponse(response);
+  },
+
   // Register a new user (initiate registration process)
   register: async (userData: {
     username: string;
