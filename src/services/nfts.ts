@@ -1,5 +1,6 @@
 import { API_CONFIG } from "../config/env";
 import { api } from "./api";
+import userStore from "../store/userStore";
 
 // Types
 export interface CreateNftDto {
@@ -24,7 +25,7 @@ export interface Nft {
   name: string;
   description?: string;
   imageUrl?: string;
-  ownerId: string;
+  userId: string;
   creatorId: string;
   collectionId?: string;
   properties?: Record<string, any>;
@@ -131,6 +132,27 @@ export const nftsApi = {
 
   syncWithBlockchain: async (nftId: string): Promise<Nft> => {
     return api.post<Nft>(`/nfts/blockchain/sync/${nftId}`, {});
+  },
+
+  // Purchase an NFT
+  purchaseNft: async (
+    nftId: string,
+    purchaseData: {
+      paymentMethod: string;
+      price: number;
+      currency: string;
+      contractAddress: string | undefined;
+      tokenId: string;
+    }
+  ): Promise<Nft> => {
+    const userId = userStore?.state?.user?.id;
+    if (!userId) {
+      throw new Error("User must be logged in to purchase NFT");
+    }
+    return api.post<Nft>(`/nfts/user/${userId}`, {
+      _id: nftId,
+      ...purchaseData,
+    });
   },
 };
 

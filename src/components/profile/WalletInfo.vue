@@ -53,7 +53,14 @@ const copied = ref(false);
 const showAuthModal = ref(false);
 
 // Computed properties
-const isWalletConnected = computed(() => userStore.state.wallet.isConnected);
+const isWalletConnected = computed(() => {
+  // Check if user has wallet data
+  if (userStore.state.user?.walletAddress && userStore.state.user?.walletType) {
+    return true;
+  }
+  // Fallback to wallet state
+  return userStore.state.wallet.isConnected;
+});
 
 const walletAddress = computed(() => {
   return userStore.state.user?.walletAddress || "";
@@ -69,6 +76,14 @@ const truncatedAddress = computed(() => {
 });
 
 const walletType = computed(() => {
+  // First try to get the wallet type from user data (more reliable after page reload)
+  const userWalletType = userStore.state.user?.walletType;
+  if (userWalletType) {
+    console.log("userWalletType", userWalletType);
+    return userWalletType.charAt(0).toUpperCase() + userWalletType.slice(1);
+  }
+
+  // Fallback to wallet state type
   const type = userStore.state.wallet.type;
   if (!type) return "";
   return type.charAt(0).toUpperCase() + type.slice(1);

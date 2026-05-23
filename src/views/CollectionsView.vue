@@ -1,6 +1,6 @@
 <template>
   <div class="collections-view">
-    <h1>My Collections</h1>
+    <h1>All Collections</h1>
 
     <!-- Authentication check -->
     <div v-if="!isAuthenticated" class="auth-required">
@@ -294,9 +294,7 @@ const fetchCollections = async () => {
 
   try {
     isLoading.value = true;
-    collections.value = await collectionsApi.getByCreator(
-      userStore.state.user.id
-    );
+    collections.value = await collectionsApi.getAll();
   } catch (error: any) {
     console.error("Error fetching collections:", error);
   } finally {

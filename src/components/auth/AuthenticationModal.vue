@@ -165,7 +165,7 @@
               class="code-digit"
               :ref="
                 (el) => {
-                  if (el) codeInputRefs[index] = el;
+                  if (el) codeInputRefs[index] = el as HTMLInputElement;
                 }
               "
             />
@@ -251,8 +251,8 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted } from "vue";
+<script setup lang="ts">
+import { ref, computed } from "vue";
 import userStore from "../../store/userStore";
 import { authApi } from "../../services/api";
 
@@ -260,7 +260,7 @@ const email = ref("");
 const password = ref("");
 const currentView = ref("initial");
 const verificationCode = ref(["", "", "", ""]);
-const codeInputRefs = ref([]);
+const codeInputRefs = ref<HTMLInputElement[]>([]);
 const isLoading = ref(false);
 const errorMessage = ref("");
 const username = ref("");
@@ -316,13 +316,13 @@ const goBack = () => {
 };
 
 // Check if a user exists with the given email
-const checkUserExists = async (email) => {
+const checkUserExists = async (email: string) => {
   try {
     // Use a simple trick - try to resend verification code for the email
     // If it fails with "user not found" error, the user doesn't exist
     await authApi.resendVerificationCode(email);
     return true; // User exists because no error was thrown
-  } catch (error) {
+  } catch (error: any) {
     // If the error contains "not found" or similar, user doesn't exist
     if (
       error.message &&
@@ -354,7 +354,7 @@ const handleEmailSubmit = async () => {
         await userStore.startRegistration(email.value);
         currentView.value = "verification";
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error processing email:", error);
       errorMessage.value = error.message || "Failed to process email";
     } finally {
@@ -378,7 +378,7 @@ const loginWithEmail = async () => {
 
     // Close modal
     close();
-  } catch (error) {
+  } catch (error: any) {
     errorMessage.value =
       error.message || "Login failed. Check your credentials.";
   } finally {
@@ -394,7 +394,7 @@ const switchToSignup = async () => {
     // Switch to the registration flow
     await userStore.startRegistration(email.value);
     currentView.value = "verification";
-  } catch (error) {
+  } catch (error: any) {
     errorMessage.value = error.message || "Failed to start registration";
   } finally {
     isLoading.value = false;
@@ -407,7 +407,7 @@ const switchToLogin = () => {
   errorMessage.value = "";
 };
 
-const handleCodeInput = (index) => {
+const handleCodeInput = (index: number) => {
   // Ensure only digits are entered
   verificationCode.value[index] = verificationCode.value[index].replace(
     /[^0-9]/g,
@@ -420,7 +420,7 @@ const handleCodeInput = (index) => {
   }
 };
 
-const handleKeyDown = (event, index) => {
+const handleKeyDown = (event: KeyboardEvent, index: number) => {
   // Handle backspace to move to previous input
   if (
     event.key === "Backspace" &&
@@ -442,7 +442,7 @@ const verifyCode = async () => {
 
     // Show complete registration form
     currentView.value = "registration";
-  } catch (error) {
+  } catch (error: any) {
     errorMessage.value = error.message || "Invalid verification code";
   } finally {
     isLoading.value = false;
@@ -462,7 +462,7 @@ const completeRegistration = async () => {
 
     // Close modal
     close();
-  } catch (error) {
+  } catch (error: any) {
     errorMessage.value = error.message || "Failed to complete registration";
   } finally {
     isLoading.value = false;
@@ -479,14 +479,14 @@ const resendCode = async () => {
 
     // Reset verification code inputs
     verificationCode.value = ["", "", "", ""];
-  } catch (error) {
+  } catch (error: any) {
     errorMessage.value = error.message || "Failed to resend verification code";
   } finally {
     isLoading.value = false;
   }
 };
 
-const connectWallet = async (type) => {
+const connectWallet = async (type: string) => {
   try {
     isLoading.value = true;
     errorMessage.value = "";
@@ -522,7 +522,7 @@ const connectWallet = async (type) => {
     } else {
       errorMessage.value = "Authentication failed. Please try again.";
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error(`Failed to connect ${type} wallet:`, error);
     errorMessage.value = error.message || `Failed to connect ${type} wallet`;
   } finally {

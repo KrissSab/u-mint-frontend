@@ -56,7 +56,7 @@ export const authApi = {
     wallet?: { type: string; address: string };
   }) => {
     const response = await fetchWithCorsHandling(
-      `${API_URL}/users`,
+      `${API_URL}/users/register/wallet`,
       createFetchOptions("POST", userData)
     );
     return handleResponse(response);

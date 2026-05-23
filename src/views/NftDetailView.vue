@@ -26,15 +26,15 @@
           <div class="ownership-info">
             <div class="owner-section">
               <span class="label">Owned by</span>
-              <router-link :to="`/profile/${nft.ownerId}`" class="link">
-                {{ shortenAddress(nft.ownerId) }}
+              <router-link :to="`/profile/${nft.userId}`" class="link">
+                {{ shortenAddress(nft.userId) }}
               </router-link>
             </div>
 
             <div class="creator-section">
               <span class="label">Created by</span>
-              <router-link :to="`/profile/${nft.creatorId}`" class="link">
-                {{ shortenAddress(nft.creatorId) }}
+              <router-link :to="`/profile/${nft.userId}`" class="link">
+                {{ shortenAddress(nft.userId) }}
               </router-link>
             </div>
           </div>
@@ -68,10 +68,24 @@
             </div>
           </div>
 
-          <div v-if="nft.isForSale" class="price-section">
+          <div v-if="nft.isForSale && !isCollectedNft" class="price-section">
             <h3>Price</h3>
             <div class="price-amount">{{ nft.price }} {{ nft.currency }}</div>
-            <button v-if="!isOwner" class="buy-button">Buy Now</button>
+            <button
+              v-if="!isOwner"
+              class="buy-button"
+              @click="showPurchaseModal = true"
+            >
+              Buy Now
+            </button>
+          </div>
+
+          <div v-if="isCollectedNft" class="acquisition-section">
+            <h3>Acquisition Details</h3>
+            <div class="acquisition-date">
+              <span class="label">Acquired on</span>
+              <span class="value">{{ formatDate(nft.createdAt) }}</span>
+            </div>
           </div>
 
           <div v-if="isOwner" class="owner-actions">
@@ -96,6 +110,125 @@
         </div>
       </div>
     </div>
+
+    <!-- Sell Modal -->
+    <div v-if="showSellModal && nft" class="modal-overlay">
+      <div class="purchase-modal">
+        <div class="modal-header">
+          <h2>List NFT for Sale</h2>
+          <button class="close-button" @click="showSellModal = false">&times;</button>
+        </div>
+        <div class="modal-content">
+          <div class="nft-preview">
+            <img :src="nft.imageUrl" :alt="nft.name" class="modal-nft-image" />
+            <div class="nft-info">
+              <h3>{{ nft.name }}</h3>
+            </div>
+          </div>
+          <div class="purchase-details">
+            <div class="detail-row">
+              <label>Price</label>
+              <div style="display:flex;gap:0.5rem;align-items:center">
+                <input
+                  type="number"
+                  v-model.number="sellPrice"
+                  min="0"
+                  step="0.001"
+                  placeholder="0.00"
+                  style="width:120px;padding:0.4rem;border:1px solid #ddd;border-radius:6px"
+                />
+                <select
+                  v-model="sellCurrency"
+                  style="padding:0.4rem;border:1px solid #ddd;border-radius:6px"
+                >
+                  <option>ETH</option>
+                  <option>MATIC</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-modal-btn" @click="showSellModal = false">Cancel</button>
+            <button
+              class="confirm-purchase-btn"
+              @click="confirmSell"
+              :disabled="isSelling || sellPrice <= 0"
+            >
+              <span v-if="isSelling" class="spinner-small"></span>
+              <span v-else>List for Sale</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Purchase Modal -->
+    <div
+      v-if="showPurchaseModal && nft && !isCollectedNft"
+      class="modal-overlay"
+    >
+      <div class="purchase-modal">
+        <div class="modal-header">
+          <h2>Purchase NFT</h2>
+          <button class="close-button" @click="showPurchaseModal = false">
+            &times;
+          </button>
+        </div>
+        <div class="modal-content">
+          <div class="nft-preview">
+            <img :src="nft.imageUrl" :alt="nft.name" class="modal-nft-image" />
+            <div class="nft-info">
+              <h3>{{ nft.name }}</h3>
+              <p class="modal-price">{{ nft.price }} {{ nft.currency }}</p>
+            </div>
+          </div>
+
+          <div class="purchase-details">
+            <div class="detail-row">
+              <span>Item Price</span>
+              <span>{{ nft.price }} {{ nft.currency }}</span>
+            </div>
+            <div class="detail-row">
+              <span>Transaction Fee</span>
+              <span>{{ calculateFee() }} {{ nft.currency }}</span>
+            </div>
+            <div class="detail-row total">
+              <span>Total</span>
+              <span>{{ calculateTotal() }} {{ nft.currency }}</span>
+            </div>
+          </div>
+
+          <div class="payment-methods">
+            <h3>Payment Method</h3>
+            <div class="payment-options">
+              <label class="payment-option">
+                <input
+                  type="radio"
+                  v-model="paymentMethod"
+                  value="wallet"
+                  checked
+                />
+                <span class="radio-label">Wallet Balance</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="cancel-modal-btn" @click="showPurchaseModal = false">
+              Cancel
+            </button>
+            <button
+              class="confirm-purchase-btn"
+              @click="purchaseNft"
+              :disabled="isPurchasing"
+            >
+              <span v-if="isPurchasing" class="spinner-small"></span>
+              <span v-else>Confirm Purchase</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -105,6 +238,7 @@ import { useRoute, useRouter } from "vue-router";
 import userStore from "../store/userStore";
 import nftsApi from "../services/nfts";
 import collectionsApi from "../services/collections";
+import salesApi from "../services/sales";
 import type { Nft } from "../services/nfts";
 import type { Collection } from "../services/collections";
 
@@ -117,15 +251,34 @@ const nft = ref<Nft | null>(null);
 const collection = ref<Collection | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+const showPurchaseModal = ref(false);
+const showSellModal = ref(false);
+const paymentMethod = ref("wallet");
+const isPurchasing = ref(false);
+const isSelling = ref(false);
+const sellPrice = ref<number>(0);
+const sellCurrency = ref("ETH");
 
 // Computed
 const isOwner = computed(() => {
   if (!nft.value || !userStore.state.user) return false;
-  return nft.value.ownerId === userStore.state.user.id;
+  return nft.value.userId === userStore.state.user.id;
 });
 
 const collectionName = computed(() => {
   return collection.value?.name || "Unknown Collection";
+});
+
+const isCollectedNft = computed(() => {
+  if (!nft.value || !userStore.state.user) return false;
+
+  // An NFT is considered "collected" if:
+  // 1. The user owns it
+  // 2. The user didn't create it
+  return (
+    nft.value.userId === userStore.state.user.id &&
+    nft.value.creatorId !== userStore.state.user.id
+  );
 });
 
 // Methods
@@ -178,13 +331,97 @@ const handleEdit = () => {
 };
 
 const handleSell = () => {
-  // To be implemented
-  console.log("List for sale");
+  sellPrice.value = 0;
+  showSellModal.value = true;
 };
 
-const handleCancelSale = () => {
-  // To be implemented
-  console.log("Cancel sale");
+const confirmSell = async () => {
+  if (!nft.value || !userStore.state.user) return;
+  if (!sellPrice.value || sellPrice.value <= 0) {
+    alert("Please enter a valid price");
+    return;
+  }
+
+  try {
+    isSelling.value = true;
+    await salesApi.create(userStore.state.user.id, {
+      nftId: nft.value._id,
+      price: sellPrice.value,
+      currency: sellCurrency.value,
+    });
+    showSellModal.value = false;
+    await fetchNft();
+  } catch (err: any) {
+    console.error("Error listing NFT for sale:", err);
+    alert(err.message || "Failed to list NFT for sale");
+  } finally {
+    isSelling.value = false;
+  }
+};
+
+const handleCancelSale = async () => {
+  if (!nft.value || !userStore.state.user) return;
+  if (!(nft.value as any).currentSaleId) {
+    alert("No active sale found");
+    return;
+  }
+
+  if (!confirm("Cancel the listing for this NFT?")) return;
+
+  try {
+    await salesApi.cancel(
+      (nft.value as any).currentSaleId,
+      userStore.state.user.id
+    );
+    await fetchNft();
+  } catch (err: any) {
+    console.error("Error cancelling sale:", err);
+    alert(err.message || "Failed to cancel sale");
+  }
+};
+
+const calculateFee = () => {
+  if (!nft.value || !nft.value.price) return 0;
+  // Calculate fee (e.g., 2.5% of the price)
+  return parseFloat((nft.value.price * 0.025).toFixed(4));
+};
+
+const calculateTotal = () => {
+  if (!nft.value || !nft.value.price) return 0;
+  return parseFloat((nft.value.price + calculateFee()).toFixed(4));
+};
+
+const purchaseNft = async () => {
+  if (!nft.value || !userStore.state.user) return;
+  if (!(nft.value as any).currentSaleId) {
+    alert("No active sale found for this NFT");
+    return;
+  }
+
+  try {
+    isPurchasing.value = true;
+    await salesApi.buy(
+      (nft.value as any).currentSaleId,
+      userStore.state.user.id
+    );
+    showPurchaseModal.value = false;
+    await fetchNft();
+    alert("NFT purchased successfully!");
+  } catch (err: any) {
+    console.error("Error purchasing NFT:", err);
+    alert(err.message || "Failed to purchase NFT");
+  } finally {
+    isPurchasing.value = false;
+  }
+};
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(date);
 };
 
 // Lifecycle hooks
@@ -395,13 +632,13 @@ onMounted(() => {
 .price-amount {
   font-size: 1.5rem;
   font-weight: 600;
-  color: var(--primary-color);
+  color: var(--secondary-light);
   margin-bottom: 1rem;
 }
 
 .buy-button {
   padding: 0.75rem 1.5rem;
-  background-color: var(--primary-color);
+  background-color: var(--secondary-color);
   color: white;
   border: none;
   border-radius: 8px;
@@ -468,5 +705,216 @@ onMounted(() => {
     flex-direction: column;
     gap: 1rem;
   }
+}
+
+/* Purchase Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.purchase-modal {
+  background-color: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  color: var(--text-color);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #777;
+}
+
+.modal-content {
+  padding: 1.5rem;
+}
+
+.nft-preview {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-nft-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+
+.nft-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.nft-info h3 {
+  margin: 0;
+  margin-bottom: 0.25rem;
+  font-size: 1.1rem;
+}
+
+.modal-price {
+  color: var(--primary-color);
+  font-weight: 600;
+  margin: 0;
+}
+
+.purchase-details {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+  color: #555;
+}
+
+.detail-row.total {
+  font-weight: 600;
+  color: var(--text-color);
+  font-size: 1.1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.payment-methods {
+  margin-bottom: 1.5rem;
+}
+
+.payment-methods h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+}
+
+.payment-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.payment-option {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.payment-option input {
+  margin-right: 0.5rem;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.cancel-modal-btn {
+  flex: 1;
+  padding: 0.75rem;
+  background-color: #f0f0f0;
+  color: #555;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.cancel-modal-btn:hover {
+  background-color: #e0e0e0;
+}
+
+.confirm-purchase-btn {
+  flex: 2;
+  padding: 0.75rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.confirm-purchase-btn:hover {
+  background-color: var(--secondary-light);
+}
+
+.confirm-purchase-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.spinner-small {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s linear infinite;
+}
+
+.acquisition-section {
+  margin-bottom: 1.5rem;
+}
+
+.acquisition-section h3 {
+  font-size: 1.25rem;
+  color: var(--text-color);
+  margin-bottom: 0.5rem;
+}
+
+.acquisition-date {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 1rem;
+}
+
+.acquisition-date .label {
+  font-size: 0.85rem;
+  color: #777;
+  margin-bottom: 0.25rem;
+}
+
+.acquisition-date .value {
+  font-weight: 500;
+  color: var(--text-color);
 }
 </style>

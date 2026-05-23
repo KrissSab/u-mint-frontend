@@ -37,6 +37,24 @@
     <div class="collection-section">
       <h2>My Collections</h2>
 
+      <!-- Navigation options -->
+      <div class="nav-options">
+        <button
+          class="nav-button"
+          :class="{ active: activeSection === 'myCollections' }"
+          @click="setActiveSection('myCollections')"
+        >
+          My Collections
+        </button>
+        <button
+          class="nav-button"
+          :class="{ active: activeSection === 'collected' }"
+          @click="navigateToCollectedNfts()"
+        >
+          Collected NFTs
+        </button>
+      </div>
+
       <!-- Search and Filter Bar -->
       <div class="search-bar">
         <div class="search-input-container">
@@ -157,6 +175,20 @@
             <img src="/metamask-fox.svg" alt="MetaMask" class="wallet-logo" />
             <span>MetaMask</span>
           </button>
+
+          <div
+            v-if="detectWallets().phantom && detectWallets().metamask"
+            class="wallet-guidance"
+          >
+            <p class="wallet-note">
+              Note: You have both Phantom and MetaMask installed. This may cause
+              conflicts.
+            </p>
+            <p class="wallet-tip">
+              Tip: For best results, disable one extension when using the other.
+            </p>
+          </div>
+
           <p v-if="walletError" class="wallet-error">{{ walletError }}</p>
         </div>
       </div>
@@ -191,11 +223,13 @@ const userData = reactive({
   name: "",
   email: "",
   walletAddress: "",
+  walletType: "",
 });
 
 // Collections
 const myCollections = ref<Collection[]>([]);
 const isLoading = ref(false);
+const activeSection = ref("myCollections");
 
 // UI state
 const showSettings = ref(false);
@@ -275,10 +309,30 @@ const connectPhantom = async () => {
     walletError.value = "";
     isConnecting.value = true;
 
+    // Use the recommended approach for detecting Phantom
+    const getPhantomProvider = () => {
+      if ("phantom" in window) {
+        const provider = window.phantom?.solana;
+
+        if (provider?.isPhantom) {
+          return provider;
+        }
+      }
+
+      throw new Error(
+        "Phantom wallet is not installed. Please install it from https://phantom.app/"
+      );
+    };
+
+    // Check if Phantom is available
+    getPhantomProvider();
+
+    // Use the userStore to connect
     await userStore.connectPhantomWallet();
     showWalletModal.value = false;
     refreshUserData();
   } catch (error: any) {
+    console.error("Phantom connection error:", error);
     walletError.value = error.message || "Failed to connect Phantom wallet";
   } finally {
     isConnecting.value = false;
@@ -290,10 +344,28 @@ const connectMetaMask = async () => {
     walletError.value = "";
     isConnecting.value = true;
 
+    // Check if MetaMask is installed
+    if (!window.ethereum) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    // Check if Phantom is also installed - if so, provide guidance
+    if (window.phantom?.solana) {
+      console.log("Both MetaMask and Phantom detected.");
+
+      // Check if MetaMask is available as a provider
+      if (!window.ethereum.isMetaMask) {
+        throw new Error(
+          "MetaMask is not the primary Ethereum provider. Try disabling the Phantom extension temporarily or use a different browser for MetaMask."
+        );
+      }
+    }
+
     await userStore.connectMetaMaskWallet();
     showWalletModal.value = false;
     refreshUserData();
   } catch (error: any) {
+    console.error("MetaMask connection error:", error);
     walletError.value = error.message || "Failed to connect MetaMask wallet";
   } finally {
     isConnecting.value = false;
@@ -313,6 +385,7 @@ const refreshUserData = () => {
       userStore.state.user.name || userStore.state.user.username || "";
     userData.email = userStore.state.user.email || "";
     userData.walletAddress = userStore.state.user.walletAddress || "";
+    userData.walletType = userStore.state.user.walletType || "";
 
     // Fetch collections after user data is refreshed
     fetchUserCollections();
@@ -328,6 +401,33 @@ const handleAuthentication = (user: any) => {
 
 const toggleSettings = () => {
   showSettings.value = !showSettings.value;
+};
+
+const detectWallets = () => {
+  const wallets = {
+    phantom: false,
+    metamask: false,
+  };
+
+  // Check for Phantom using the recommended approach
+  if ("phantom" in window && window.phantom?.solana?.isPhantom) {
+    wallets.phantom = true;
+  }
+
+  // Check for MetaMask
+  if (window.ethereum?.isMetaMask) {
+    wallets.metamask = true;
+  }
+
+  return wallets;
+};
+
+const setActiveSection = (section: string) => {
+  activeSection.value = section;
+};
+
+const navigateToCollectedNfts = () => {
+  router.push("/collected-nfts");
 };
 
 // Initialize
@@ -495,6 +595,32 @@ onMounted(() => {
   margin-top: 0;
   margin-bottom: 1.5rem;
   color: var(--text-color);
+}
+
+.nav-options {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.nav-button {
+  padding: 0.5rem 1rem;
+  background-color: var(--secondary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  text-decoration: none;
+  margin-right: 1rem;
+}
+
+.nav-button:hover {
+  background-color: var(--secondary-light);
+}
+
+.nav-button.active {
+  background-color: var(--secondary-light);
 }
 
 .search-bar {
@@ -724,6 +850,20 @@ onMounted(() => {
   color: #ff4d4d;
   font-size: 0.9rem;
   text-align: center;
+}
+
+.wallet-guidance {
+  margin-bottom: 1rem;
+}
+
+.wallet-note {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+.wallet-tip {
+  color: #666;
+  font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {

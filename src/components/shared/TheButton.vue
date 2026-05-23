@@ -5,10 +5,11 @@
 </template>
 
 <script lang="ts">
+import { type PropType } from "vue";
 export default {
   props: {
     type: {
-      type: String,
+      type: String as PropType<"button" | "submit" | "reset">,
       default: "button",
       validator: (value: string) =>
         ["button", "submit", "reset"].includes(value),

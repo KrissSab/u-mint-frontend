@@ -6,7 +6,7 @@
       <div class="nft-info">
         <h1>Chill Guys ✓</h1>
         <h4>by Kriss</h4>
-        <h4>999 items - 0.5 eth</h4>
+        <h4>3 items - 0.4 SOL</h4>
       </div>
       <div class="minting-status">
         <div class="status-color"></div>

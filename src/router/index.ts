@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from "vue-router";
 import type { RouteLocationNormalized, NavigationGuardNext } from "vue-router";
 import Home from "../components/home/TheHome.vue";
 import userStore from "../store/userStore";
+import CollectedNftsView from "../views/CollectedNftsView.vue";
 
 // Create a navigation guard for protected routes
 const requireAuth = (
@@ -52,6 +53,12 @@ const routes = [
     name: "CreateNft",
     component: () => import("../views/CreateNftView.vue"),
     // No auth guard, auth check is handled in the component
+  },
+  {
+    path: "/collected-nfts",
+    name: "CollectedNfts",
+    component: CollectedNftsView,
+    meta: { requiresAuth: true },
   },
 ];
 
