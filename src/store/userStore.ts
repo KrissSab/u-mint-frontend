@@ -1,5 +1,5 @@
 import { reactive, readonly } from "vue";
-import { authApi } from "../services/api";
+import { authApi, api } from "../services/api";
 
 // Define Ethereum window interface
 declare global {
@@ -174,6 +174,17 @@ const actions = {
         state.wallet.provider = provider;
         state.wallet.type = "phantom";
 
+        // If user is already logged in — just link the wallet to their existing account
+        if (state.isAuthenticated && state.user) {
+          await api.post("/wallets", {
+            userId: state.user.id,
+            type: "phantom",
+            address: walletAddress,
+          });
+          this.login({ ...state.user, walletAddress, walletType: "phantom" });
+          return walletAddress;
+        }
+
         try {
           // Try to login with the wallet
           const loginResponse = (await authApi.loginWithWallet({
@@ -300,6 +311,17 @@ const actions = {
       state.wallet.provider = window.ethereum;
       state.wallet.type = "metamask";
 
+      // If user is already logged in — just link the wallet to their existing account
+      if (state.isAuthenticated && state.user) {
+        await api.post("/wallets", {
+          userId: state.user.id,
+          type: "metamask",
+          address: walletAddress,
+        });
+        this.login({ ...state.user, walletAddress, walletType: "metamask" });
+        return walletAddress;
+      }
+
       try {
         // Try to login with the wallet
         const loginResponse = (await authApi.loginWithWallet({
@@ -317,7 +339,7 @@ const actions = {
           name: userData.username,
           username: userData.username,
           walletAddress: userData.wallets?.[0]?.address || walletAddress,
-          walletType: "metamask", // Explicitly set wallet type
+          walletType: "metamask",
         });
 
         console.log("Successfully logged in with wallet:", userData);
