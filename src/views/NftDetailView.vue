@@ -111,6 +111,38 @@
       </div>
     </div>
 
+    <!-- Edit Modal -->
+    <div v-if="showEditModal && nft" class="modal-overlay">
+      <div class="purchase-modal">
+        <div class="modal-header">
+          <h2>Edit NFT</h2>
+          <button class="close-button" @click="showEditModal = false">&times;</button>
+        </div>
+        <div class="modal-content">
+          <div class="form-group-modal">
+            <label>Name</label>
+            <input v-model="editData.name" type="text" class="modal-input" />
+          </div>
+          <div class="form-group-modal">
+            <label>Description</label>
+            <textarea v-model="editData.description" class="modal-input modal-textarea" rows="3"></textarea>
+          </div>
+          <div class="form-group-modal">
+            <label>Image URL</label>
+            <input v-model="editData.imageUrl" type="url" class="modal-input" />
+            <img v-if="editData.imageUrl" :src="editData.imageUrl" class="edit-preview" />
+          </div>
+          <div class="modal-actions">
+            <button class="cancel-modal-btn" @click="showEditModal = false">Cancel</button>
+            <button class="confirm-purchase-btn" @click="saveEdit" :disabled="isSaving || !editData.name.trim()">
+              <span v-if="isSaving" class="spinner-small"></span>
+              <span v-else>Save</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Sell Modal -->
     <div v-if="showSellModal && nft" class="modal-overlay">
       <div class="purchase-modal">
@@ -253,6 +285,9 @@ const isLoading = ref(true);
 const error = ref<string | null>(null);
 const showPurchaseModal = ref(false);
 const showSellModal = ref(false);
+const showEditModal = ref(false);
+const isSaving = ref(false);
+const editData = ref({ name: "", description: "", imageUrl: "" });
 const paymentMethod = ref("wallet");
 const isPurchasing = ref(false);
 const isSelling = ref(false);
@@ -326,8 +361,26 @@ const shortenAddress = (address: string) => {
 };
 
 const handleEdit = () => {
-  // To be implemented
-  console.log("Edit NFT");
+  if (!nft.value) return;
+  editData.value = {
+    name: nft.value.name,
+    description: nft.value.description || "",
+    imageUrl: nft.value.imageUrl || "",
+  };
+  showEditModal.value = true;
+};
+
+const saveEdit = async () => {
+  if (!nft.value || !userStore.state.user) return;
+  try {
+    isSaving.value = true;
+    nft.value = await nftsApi.update(nft.value._id, userStore.state.user.id, editData.value);
+    showEditModal.value = false;
+  } catch (err: any) {
+    alert(err.message || "Failed to save changes");
+  } finally {
+    isSaving.value = false;
+  }
 };
 
 const handleSell = () => {
@@ -916,5 +969,42 @@ onMounted(() => {
 .acquisition-date .value {
   font-weight: 500;
   color: var(--text-color);
+}
+.form-group-modal {
+  margin-bottom: 1rem;
+}
+
+.form-group-modal label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.modal-input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+
+.modal-input:focus {
+  outline: none;
+  border-color: var(--secondary-color, #6633cc);
+}
+
+.modal-textarea {
+  resize: vertical;
+}
+
+.edit-preview {
+  margin-top: 0.5rem;
+  max-width: 100%;
+  max-height: 140px;
+  border-radius: 6px;
+  object-fit: cover;
 }
 </style>

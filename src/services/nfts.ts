@@ -8,7 +8,7 @@ export interface CreateNftDto {
   description?: string;
   imageUrl: string;
   collectionId?: string;
-  properties?: Record<string, any>;
+  metadata?: Record<string, any>;
   royalties?: {
     address: string;
     percentage: number;
@@ -28,7 +28,7 @@ export interface Nft {
   userId: string;
   creatorId: string;
   collectionId?: string;
-  properties?: Record<string, any>;
+  metadata?: Record<string, any>;
   royalties?: {
     address: string;
     percentage: number;
@@ -39,7 +39,6 @@ export interface Nft {
   mintedOn?: string;
   tokenId: string;
   contractAddress: string;
-  metadata?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }

@@ -41,13 +41,50 @@
         </button>
       </div>
 
-      <div v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
+      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
+      <div v-if="successMessage" class="success-message">{{ successMessage }}</div>
+    </div>
+
+    <div class="settings-section">
+      <h3>Change Password</h3>
+
+      <div class="form-group">
+        <label for="new-password">New Password</label>
+        <input
+          type="password"
+          id="new-password"
+          v-model="newPassword"
+          class="form-input"
+          placeholder="At least 8 characters"
+        />
       </div>
 
-      <div v-if="successMessage" class="success-message">
-        {{ successMessage }}
+      <div class="form-group">
+        <label for="confirm-password">Confirm New Password</label>
+        <input
+          type="password"
+          id="confirm-password"
+          v-model="confirmPassword"
+          class="form-input"
+          placeholder="Repeat new password"
+          @keyup.enter="changePassword"
+        />
+        <p v-if="passwordMismatch" class="error-inline">Passwords do not match</p>
       </div>
+
+      <div class="form-actions">
+        <button
+          @click="changePassword"
+          class="save-button"
+          :disabled="isChangingPassword || !canChangePassword"
+        >
+          <span v-if="isChangingPassword">Saving...</span>
+          <span v-else>Update Password</span>
+        </button>
+      </div>
+
+      <div v-if="passwordErrorMessage" class="error-message">{{ passwordErrorMessage }}</div>
+      <div v-if="passwordSuccessMessage" class="success-message">{{ passwordSuccessMessage }}</div>
     </div>
   </div>
 </template>
@@ -66,6 +103,12 @@ const isSaving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
 
+const newPassword = ref("");
+const confirmPassword = ref("");
+const isChangingPassword = ref(false);
+const passwordErrorMessage = ref("");
+const passwordSuccessMessage = ref("");
+
 // Computed properties
 const userHasEmail = computed(() => {
   return !!originalEmail.value;
@@ -79,6 +122,17 @@ const hasChanges = computed(() => {
   return (
     username.value !== originalUsername.value ||
     (email.value !== originalEmail.value && email.value !== "")
+  );
+});
+
+const passwordMismatch = computed(() => {
+  return confirmPassword.value.length > 0 && newPassword.value !== confirmPassword.value;
+});
+
+const canChangePassword = computed(() => {
+  return (
+    newPassword.value.length >= 8 &&
+    newPassword.value === confirmPassword.value
   );
 });
 
@@ -156,6 +210,26 @@ const isValidEmail = (email: string): boolean => {
   return re.test(email);
 };
 
+const changePassword = async () => {
+  try {
+    passwordErrorMessage.value = "";
+    passwordSuccessMessage.value = "";
+    isChangingPassword.value = true;
+
+    await api.patch(`/users/${userStore.state.user?.id}`, {
+      password: newPassword.value,
+    });
+
+    newPassword.value = "";
+    confirmPassword.value = "";
+    passwordSuccessMessage.value = "Password updated successfully";
+  } catch (error: any) {
+    passwordErrorMessage.value = error.message || "Failed to update password";
+  } finally {
+    isChangingPassword.value = false;
+  }
+};
+
 // Initialize
 onMounted(() => {
   loadUserData();
@@ -220,6 +294,12 @@ label {
   margin-top: 0.5rem;
   font-size: 0.85rem;
   color: #666;
+}
+
+.error-inline {
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+  color: #e74c3c;
 }
 
 .form-actions {

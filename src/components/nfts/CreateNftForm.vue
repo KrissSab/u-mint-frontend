@@ -39,35 +39,6 @@
         </div>
       </div>
 
-      <!-- Contract Address and Token ID (required) -->
-      <div class="form-group">
-        <label for="contractAddress">Contract Address *</label>
-        <input
-          type="text"
-          id="contractAddress"
-          v-model="nftData.contractAddress"
-          required
-          class="form-input"
-          placeholder="0x..."
-        />
-        <p class="help-text">The blockchain contract address for this NFT</p>
-      </div>
-
-      <div class="form-group">
-        <label for="tokenId">Token ID *</label>
-        <input
-          type="text"
-          id="tokenId"
-          v-model="nftData.tokenId"
-          required
-          class="form-input"
-          placeholder="1"
-        />
-        <p class="help-text">
-          The unique identifier for this NFT within the contract
-        </p>
-      </div>
-
       <div class="form-group" v-if="showCollectionSelect">
         <label for="collection">Collection</label>
         <select
@@ -148,13 +119,18 @@
       </div>
 
       <div class="form-group royalty-group">
-        <label>Royalties (optional)</label>
+        <label>
+          Royalties (optional)
+          <span v-if="royaltyLockedByCollection" class="locked-badge">from collection</span>
+        </label>
         <div class="royalty-inputs">
           <input
             type="text"
             v-model="royaltyAddress"
             class="form-input royalty-address"
             placeholder="Wallet address for royalties"
+            :disabled="royaltyLockedByCollection"
+            :class="{ 'input-locked': royaltyLockedByCollection }"
           />
           <div class="royalty-percentage">
             <input
@@ -164,13 +140,17 @@
               min="0"
               max="15"
               step="0.1"
+              :disabled="royaltyLockedByCollection"
+              :class="{ 'input-locked': royaltyLockedByCollection }"
             />
             <span class="percentage-symbol">%</span>
           </div>
         </div>
-        <p class="help-text">
-          Royalties allow you to earn a fee when your NFT is sold on the
-          secondary market
+        <p v-if="royaltyLockedByCollection" class="help-text">
+          Royalty is set by the collection and cannot be changed.
+        </p>
+        <p v-else class="help-text">
+          Royalties allow you to earn a fee when your NFT is sold on the secondary market.
         </p>
       </div>
 
@@ -196,10 +176,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, defineProps, defineEmits } from "vue";
+import { ref, computed, defineProps, defineEmits, onMounted, watch } from "vue";
 import type { PropType } from "vue";
 import type { Collection } from "../../services/collections";
 import type { CreateNftDto, Nft } from "../../services/nfts";
+import { api } from "../../services/api";
 
 // Props
 const props = defineProps({
@@ -244,6 +225,27 @@ const royaltyPercentage = ref(5);
 
 const properties = ref<{ name: string; value: string }[]>([]);
 
+// Royalty from collection
+const royaltyLockedByCollection = computed(() => {
+  if (!nftData.value.collectionId) return false;
+  const col = props.collections.find((c) => c._id === nftData.value.collectionId);
+  return !!col?.royalties?.address;
+});
+
+watch(
+  () => nftData.value.collectionId,
+  (id) => {
+    const col = props.collections.find((c) => c._id === id);
+    if (col?.royalties?.address) {
+      royaltyAddress.value = col.royalties.address;
+      royaltyPercentage.value = col.royalties.percentage;
+    } else if (!id) {
+      royaltyAddress.value = "";
+      royaltyPercentage.value = 5;
+    }
+  }
+);
+
 // Computed
 const isValidForm = computed(() => {
   return (
@@ -256,17 +258,17 @@ const isValidForm = computed(() => {
 const handleSubmit = () => {
   if (!isValidForm.value) return;
 
-  // Add properties to the NFT data
+  // Add properties to the NFT data as metadata
   if (properties.value.length > 0) {
-    const propertiesObj: Record<string, any> = {};
+    const metadataObj: Record<string, any> = {};
     properties.value.forEach((prop) => {
       if (prop.name && prop.value) {
-        propertiesObj[prop.name] = prop.value;
+        metadataObj[prop.name] = prop.value;
       }
     });
 
-    if (Object.keys(propertiesObj).length > 0) {
-      nftData.value.properties = propertiesObj;
+    if (Object.keys(metadataObj).length > 0) {
+      nftData.value.metadata = metadataObj;
     }
   }
 
@@ -289,6 +291,16 @@ const addProperty = () => {
 const removeProperty = (index: number) => {
   properties.value.splice(index, 1);
 };
+
+onMounted(async () => {
+  nftData.value.tokenId = Date.now().toString();
+  try {
+    const res = await api.get<{ platformContract: string }>("/blockchain/addresses");
+    nftData.value.contractAddress = res.platformContract;
+  } catch {
+    // fallback: field stays empty, backend will validate
+  }
+});
 </script>
 
 <style scoped>
@@ -451,6 +463,24 @@ label {
   margin-top: 0.5rem;
   font-size: 0.85rem;
   color: #777;
+}
+
+.input-locked {
+  background-color: #f5f5f5;
+  color: #888;
+  cursor: not-allowed;
+}
+
+.locked-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.4rem;
+  background-color: #ede9f8;
+  color: var(--secondary-color, #6633cc);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  vertical-align: middle;
 }
 
 .form-actions {

@@ -127,6 +127,15 @@ export const authApi = {
     );
     return handleResponse(response);
   },
+
+  // Check if an email is already registered
+  checkEmailExists: async (email: string): Promise<{ exists: boolean }> => {
+    const response = await fetchWithCorsHandling(
+      `${API_URL}/users/check-email/${encodeURIComponent(email)}`,
+      createFetchOptions("GET")
+    );
+    return handleResponse<{ exists: boolean }>(response);
+  },
 };
 
 // Create a general API utility for other endpoints

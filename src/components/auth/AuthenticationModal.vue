@@ -316,25 +316,9 @@ const goBack = () => {
 };
 
 // Check if a user exists with the given email
-const checkUserExists = async (email: string) => {
-  try {
-    // Use a simple trick - try to resend verification code for the email
-    // If it fails with "user not found" error, the user doesn't exist
-    await authApi.resendVerificationCode(email);
-    return true; // User exists because no error was thrown
-  } catch (error: any) {
-    // If the error contains "not found" or similar, user doesn't exist
-    if (
-      error.message &&
-      (error.message.includes("not found") ||
-        error.message.includes("does not exist") ||
-        error.message.includes("no user"))
-    ) {
-      return false;
-    }
-    // For other errors, assume user exists
-    return true;
-  }
+const checkUserExists = async (emailValue: string) => {
+  const result = await authApi.checkEmailExists(emailValue);
+  return result.exists;
 };
 
 const handleEmailSubmit = async () => {
