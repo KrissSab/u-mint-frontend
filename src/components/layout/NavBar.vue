@@ -26,7 +26,7 @@
         </div>
       </div>
 
-      <TheButton variant="navigation" size="sm">News</TheButton>
+      <TheButton variant="navigation" size="sm" class="nav-hide-md">News</TheButton>
     </nav>
     <SearchBar />
     <ProfileNavigation />
@@ -42,12 +42,32 @@ import ProfileNavigation from "./ProfileNavigation.vue";
 <style scoped>
 .navbar {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  justify-content: space-between;
+  grid-template-columns: auto 1fr auto;
   width: 100%;
   color: var(--primary-light);
   align-items: center;
   padding: 0.5rem 2rem;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .nav-hide-md {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    padding: 0.5rem 1rem;
+    gap: 0.25rem;
+  }
+}
+
+@media (max-width: 560px) {
+  .vertical-line {
+    display: none;
+  }
 }
 
 .vertical-line {

@@ -25,10 +25,33 @@
   position: relative;
   border-radius: 0.75rem;
   background-color: rgba(0, 0, 0, 0.3);
-  height: calc(-21.12px + 25vw);
+  height: clamp(220px, 25vw, 420px);
   width: 100%;
   display: flex;
   justify-content: space-between;
+  align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+  .trend-container {
+    padding: 1.25rem;
+    height: clamp(200px, 40vw, 300px);
+  }
+}
+
+@media (max-width: 480px) {
+  .trend-container {
+    padding: 1rem;
+    flex-direction: column;
+    align-items: flex-start;
+    height: auto;
+    min-height: 200px;
+    gap: 1rem;
+  }
+
+  .view-drop {
+    align-self: flex-start;
+  }
 }
 
 .gif-background {
