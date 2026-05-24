@@ -2,8 +2,8 @@
   <div class="collected-nfts-view">
     <!-- Header -->
     <div class="view-header">
-      <h1>My Collected NFTs</h1>
-      <p class="subtitle">NFTs you own from collections created by others</p>
+      <h1>My NFTs</h1>
+      <p class="subtitle">All NFTs you own</p>
     </div>
 
     <!-- Loading State -->
@@ -100,7 +100,7 @@
           {{
             searchQuery
               ? "No NFTs found matching your search"
-              : "You don't have any collected NFTs yet"
+              : "You don't have any NFTs yet"
           }}
         </p>
         <div class="empty-actions">
@@ -237,51 +237,29 @@ const fetchCollectedNfts = async () => {
     isLoading.value = true;
     error.value = null;
 
-    // Get all NFTs owned by the user
-    const allUserNfts = await nftsApi.getByOwner(userStore.state.user.id);
+    collectedNfts.value = await nftsApi.getByOwner(userStore.state.user.id);
 
-    // Get all collections created by the user
-    const userCollections = await collectionsApi.getByCreator(
-      userStore.state.user.id
-    );
-    const userCollectionIds = userCollections.map((col) => col._id);
-
-    // Filter NFTs to only include those from collections the user doesn't own
-    collectedNfts.value = allUserNfts.filter(
-      (nft) => nft.collectionId && !userCollectionIds.includes(nft.collectionId)
-    );
-
-    // Fetch only the collections that the user has NFTs from but didn't create
     const collectionIdsToFetch = [
       ...new Set(
         collectedNfts.value
           .filter((nft) => nft.collectionId)
-          .map((nft) => nft.collectionId)
+          .map((nft) => nft.collectionId as string)
       ),
     ];
 
     if (collectionIdsToFetch.length > 0) {
-      // Fetch each collection individually and combine the results
-      const collectionPromises = collectionIdsToFetch.map((id) =>
-        collectionsApi.getOne(id as string).catch((err) => {
-          console.error(`Error fetching collection ${id}:`, err);
-          return null;
-        })
+      const fetchedCollections = await Promise.all(
+        collectionIdsToFetch.map((id) =>
+          collectionsApi.getOne(id).catch(() => null)
+        )
       );
-
-      const fetchedCollections = await Promise.all(collectionPromises);
-      collections.value = fetchedCollections.filter(
-        (collection) => collection !== null
-      ) as Collection[];
+      collections.value = fetchedCollections.filter(Boolean) as Collection[];
     } else {
       collections.value = [];
     }
-
-    console.log("Filtered NFTs:", collectedNfts.value);
-    console.log("Collections loaded:", collections.value);
   } catch (err: any) {
-    console.error("Error fetching collected NFTs:", err);
-    error.value = err.message || "Failed to load collected NFTs";
+    console.error("Error fetching NFTs:", err);
+    error.value = err.message || "Failed to load NFTs";
   } finally {
     isLoading.value = false;
   }

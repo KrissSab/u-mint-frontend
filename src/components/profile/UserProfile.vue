@@ -51,7 +51,7 @@
           :class="{ active: activeSection === 'collected' }"
           @click="navigateToCollectedNfts()"
         >
-          Collected NFTs
+          My NFTs
         </button>
       </div>
 

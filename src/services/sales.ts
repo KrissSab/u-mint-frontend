@@ -33,7 +33,7 @@ export interface Sale {
   endDate?: string;
   minimumBid?: number;
   reservePrice?: number;
-  status: "active" | "completed" | "cancelled";
+  status: "active" | "sold" | "cancelled" | "expired";
   bids?: Bid[];
   highestBid?: Bid;
   createdAt: string;
@@ -65,6 +65,11 @@ export const salesApi = {
   // Get sales by buyer
   getByBuyer: async (buyerId: string): Promise<Sale[]> => {
     return api.get<Sale[]>(`/sales/buyer/${buyerId}`);
+  },
+
+  // Get all sales for a specific NFT
+  getByNft: async (nftId: string): Promise<Sale[]> => {
+    return api.get<Sale[]>(`/sales/nft/${nftId}`);
   },
 
   // Get a single sale

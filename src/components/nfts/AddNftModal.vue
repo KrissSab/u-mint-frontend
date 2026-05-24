@@ -24,12 +24,25 @@
       <div class="modal-body">
         <!-- Create new NFT tab -->
         <div v-if="activeTab === 'create'" class="tab-content">
-          <CreateNftForm
-            :preselectedCollectionId="collectionId"
-            :showCollectionSelect="false"
-            @submit="handleCreateNft"
-            @cancel="$emit('close')"
-          />
+          <!-- Minting overlay -->
+          <div v-if="mintingStatus" class="minting-overlay">
+            <div class="spinner"></div>
+            <p v-if="mintingStatus === 'saving'">Збереження NFT...</p>
+            <p v-else-if="mintingStatus === 'minting'">
+              Підтвердь транзакцію в MetaMask щоб заминчити NFT on-chain...
+            </p>
+          </div>
+
+          <template v-else>
+            <div v-if="mintingError" class="minting-error">{{ mintingError }}</div>
+            <CreateNftForm
+              :preselectedCollectionId="collectionId"
+              :collections="collection ? [collection] : []"
+              :showCollectionSelect="false"
+              @submit="handleCreateNft"
+              @cancel="$emit('close')"
+            />
+          </template>
         </div>
 
         <!-- Add existing NFT tab -->
@@ -117,17 +130,31 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
+import { BrowserProvider, Contract } from "ethers";
 import CreateNftForm from "./CreateNftForm.vue";
 import NftCard from "./NftCard.vue";
 import userStore from "../../store/userStore";
 import nftsApi from "../../services/nfts";
 import type { Nft, CreateNftDto } from "../../services/nfts";
+import type { Collection } from "../../services/collections";
+import type { PropType } from "vue";
+
+const PLATFORM_CONTRACT_ADDRESS = "0xA91304e35A47b4e9E5c98c063137bBdee03C0C40";
+const MINT_ABI = [
+  "function mintToken(uint256 tokenId, uint256 nonce) external",
+  "function getNonce(address account) external view returns (uint256)",
+];
+const SEPOLIA_CHAIN_ID = "0xaa36a7";
 
 // Props
 const props = defineProps({
   collectionId: {
     type: String,
     required: true,
+  },
+  collection: {
+    type: Object as PropType<Collection | null>,
+    default: null,
   },
 });
 
@@ -141,6 +168,8 @@ const isLoadingNfts = ref(false);
 const selectedNftId = ref("");
 const isSubmitting = ref(false);
 const errorMessage = ref("");
+const mintingStatus = ref<"" | "saving" | "minting" | "done">("");
+const mintingError = ref("");
 
 // Computed
 const availableNfts = computed(() => {
@@ -166,32 +195,59 @@ const fetchMyNfts = async () => {
 const handleCreateNft = async (nftData: CreateNftDto) => {
   if (!userStore.state.user) return;
 
+  mintingError.value = "";
+
   try {
-    isSubmitting.value = true;
-    errorMessage.value = "";
-
-    // Add collection ID to the NFT data
+    // Step 1: Save to MongoDB
+    mintingStatus.value = "saving";
     nftData.collectionId = props.collectionId;
-
-    // Create the NFT
     const createdNft = await nftsApi.create(userStore.state.user.id, nftData);
 
-    // Notify parent component
-    emit("nft-added", createdNft);
+    // Step 2: Mint on-chain via MetaMask
+    mintingStatus.value = "minting";
 
-    // Close modal
+    if (!(window as any).ethereum) {
+      mintingStatus.value = "";
+      mintingError.value = "MetaMask не встановлено. NFT збережено в профілі, але не заминчено on-chain.";
+      emit("nft-added", createdNft);
+      return;
+    }
+
+    const chainId = await (window as any).ethereum.request({ method: "eth_chainId" });
+    if (chainId !== SEPOLIA_CHAIN_ID) {
+      await (window as any).ethereum.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: SEPOLIA_CHAIN_ID }],
+      });
+    }
+
+    const provider = new BrowserProvider((window as any).ethereum);
+    const signer = await provider.getSigner();
+    const contract = new Contract(PLATFORM_CONTRACT_ADDRESS, MINT_ABI, signer);
+
+    const tokenIdBigInt = BigInt(createdNft.tokenId);
+    const nonce = await contract.getNonce(signer.address);
+    const tx = await contract.mintToken(tokenIdBigInt, nonce);
+    console.log("[Mint] tx hash:", tx.hash);
+    await tx.wait();
+    console.log("[Mint] confirmed!");
+
+    mintingStatus.value = "done";
+    emit("nft-added", createdNft);
     emit("close");
   } catch (error: any) {
-    console.error("Error creating NFT:", error);
-    errorMessage.value = error.message || "Failed to create NFT";
+    mintingStatus.value = "";
+    console.error("[Mint] Error:", error);
 
-    // Log more details about the error for debugging
-    if (error.response) {
-      console.error("Response data:", error.response.data);
-      console.error("Response status:", error.response.status);
+    if (error.code === 4001 || error.code === "ACTION_REJECTED") {
+      mintingError.value = "Транзакцію відхилено в MetaMask. NFT збережено в профілі, але не заминчено on-chain.";
+    } else if (error.code === 4902) {
+      mintingError.value = "Мережа Sepolia не додана в MetaMask. Додай її вручну.";
+    } else if (mintingStatus.value === "saving" || !error.code) {
+      errorMessage.value = error.message || "Не вдалося створити NFT";
+    } else {
+      mintingError.value = `Помилка минчингу: ${error.reason || error.message || "Невідома помилка"}`;
     }
-  } finally {
-    isSubmitting.value = false;
   }
 };
 
@@ -470,6 +526,32 @@ onMounted(() => {
   padding: 0.75rem;
   background-color: #ffeeee;
   color: #e74c3c;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.minting-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+  text-align: center;
+}
+
+.minting-overlay p {
+  margin-top: 1.25rem;
+  color: #555;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.minting-error {
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  background-color: #fff0f0;
+  color: #c0392b;
+  border: 1px solid #f5c6c6;
   border-radius: 8px;
   font-size: 0.9rem;
 }

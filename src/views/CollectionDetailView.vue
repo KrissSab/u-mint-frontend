@@ -65,11 +65,11 @@
           <div class="stat-label">Items</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ collection.totalVolume || "0" }}</div>
+          <div class="stat-value">{{ collection.totalVolume ? `${+collection.totalVolume.toPrecision(6)} ETH` : "—" }}</div>
           <div class="stat-label">Volume</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ collection.floorPrice || "0" }}</div>
+          <div class="stat-value">{{ collection.floorPrice ? `${+collection.floorPrice.toPrecision(6)} ETH` : "—" }}</div>
           <div class="stat-label">Floor Price</div>
         </div>
       </div>
@@ -260,6 +260,7 @@
     <AddNftModal
       v-if="showAddNftModal"
       :collectionId="collection?._id || ''"
+      :collection="collection"
       @close="showAddNftModal = false"
       @nft-added="handleNftAdded"
     />

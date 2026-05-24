@@ -86,11 +86,11 @@
               </div>
               <div class="stat">
                 <span class="label">Floor</span>
-                <span class="value">{{ collection.floorPrice || "-" }}</span>
+                <span class="value">{{ collection.floorPrice ? `${+collection.floorPrice.toPrecision(6)} ETH` : "—" }}</span>
               </div>
               <div class="stat">
                 <span class="label">Volume</span>
-                <span class="value">{{ collection.totalVolume || "-" }}</span>
+                <span class="value">{{ collection.totalVolume ? `${+collection.totalVolume.toPrecision(6)} ETH` : "—" }}</span>
               </div>
             </div>
           </div>

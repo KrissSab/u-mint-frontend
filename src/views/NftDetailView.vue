@@ -89,7 +89,11 @@
           </div>
 
           <div v-if="isOwner" class="owner-actions">
-            <button class="action-button" @click="handleEdit">
+            <button
+              v-if="!hasSoldBefore"
+              class="action-button"
+              @click="handleEdit"
+            >
               <span class="icon">✏️</span> Edit
             </button>
             <button
@@ -283,6 +287,7 @@ const nft = ref<Nft | null>(null);
 const collection = ref<Collection | null>(null);
 const isLoading = ref(true);
 const error = ref<string | null>(null);
+const hasSoldBefore = ref(false);
 const showPurchaseModal = ref(false);
 const showSellModal = ref(false);
 const showEditModal = ref(false);
@@ -328,6 +333,10 @@ const fetchNft = async () => {
   try {
     isLoading.value = true;
     nft.value = await nftsApi.getOne(nftId);
+
+    // Check if this NFT has ever been sold
+    const nftSales = await salesApi.getByNft(nftId);
+    hasSoldBefore.value = nftSales.some((s) => s.status === "sold");
 
     // If the NFT belongs to a collection, fetch collection details
     if (nft.value.collectionId) {

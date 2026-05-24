@@ -297,9 +297,15 @@ const actions = {
 
       console.log("Using MetaMask provider:", window.ethereum);
 
-      // Request account access
+      // Force MetaMask account picker so user can choose which account to connect
+      await window.ethereum.request({
+        method: "wallet_requestPermissions",
+        params: [{ eth_accounts: {} }],
+      });
+
+      // Get the selected account after permission granted
       const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
+        method: "eth_accounts",
       });
       const walletAddress = accounts[0];
       console.log("MetaMask accounts:", accounts);
